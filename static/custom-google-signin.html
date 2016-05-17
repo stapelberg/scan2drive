@@ -1,0 +1,21 @@
+<dom-module id="custom-google-signin">
+  <link rel="import" type="css" href="bower_components/google-signin/google-signin.css">
+  <template>
+    <div id="button"
+		  class="height-standard width-standard theme-light brand-google style-scope">
+      <paper-ripple id="ripple" class="fit"></paper-ripple>
+      <!-- this div is needed to position the ripple behind text content -->
+      <div relative layout horizontal center-center>
+				<div class="button-content signIn" tabindex="0">
+					<span class="icon"><iron-icon icon="google:google"></iron-icon></span>
+					<span class="buttonText">Sign in</span>
+				</div>
+      </div>
+    </div>
+	</template>
+	<script>
+	Polymer({
+		is: 'custom-google-signin',
+	});
+	</script>
+</dom-module>

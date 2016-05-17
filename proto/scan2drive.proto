@@ -1,0 +1,37 @@
+// vim:ts=2:sw=2:et
+syntax = "proto3";
+
+package proto;
+
+message DefaultUserRequest {
+}
+
+message DefaultUserReply {
+  string user = 1;
+}
+
+message ProcessScanRequest {
+  string user = 1;
+  string dir = 2;
+}
+
+message ProcessScanReply {
+}
+
+message ConvertRequest {
+  repeated bytes scanned_page = 1;
+}
+
+message ConvertReply {
+  bytes PDF = 1;
+  // A thumbnail (PNG).
+  bytes thumb = 2;
+}
+
+service Scan {
+  rpc DefaultUser(DefaultUserRequest) returns (DefaultUserReply) {}
+
+  rpc ProcessScan(ProcessScanRequest) returns (ProcessScanReply) {}
+
+  rpc Convert(ConvertRequest) returns (ConvertReply) {}
+}

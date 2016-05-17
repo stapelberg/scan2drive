@@ -1,0 +1,15 @@
+[Unit]
+Description=scan2drive
+
+[Service]
+User=saned
+Group=scanner
+ExecStart=/usr/bin/scan2drive \
+  -scan_service=midna:7119 \
+  -scans_dir=/var/lib/saned/scans \
+  -state_dir=/var/lib/scan2drive \
+  -static_dir=/usr/share/scan2drive/static \
+  -client_secret_path=/etc/scan2drive/client_secret_197950901230-jee3asvone1tnh7k2qsshm369723vkun.apps.googleusercontent.com.json
+
+[Install]
+WantedBy=multi-user.target
