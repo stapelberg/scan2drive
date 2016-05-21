@@ -104,6 +104,10 @@ func init() {
 var _ context.Context
 var _ grpc.ClientConn
 
+// This is a compile-time assertion to ensure that this generated file
+// is compatible with the grpc package it is being compiled against.
+const _ = grpc.SupportPackageIsVersion2
+
 // Client API for Scan service
 
 type ScanClient interface {
@@ -159,40 +163,58 @@ func RegisterScanServer(s *grpc.Server, srv ScanServer) {
 	s.RegisterService(&_Scan_serviceDesc, srv)
 }
 
-func _Scan_DefaultUser_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error) (interface{}, error) {
+func _Scan_DefaultUser_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(DefaultUserRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
-	out, err := srv.(ScanServer).DefaultUser(ctx, in)
-	if err != nil {
-		return nil, err
+	if interceptor == nil {
+		return srv.(ScanServer).DefaultUser(ctx, in)
 	}
-	return out, nil
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.Scan/DefaultUser",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ScanServer).DefaultUser(ctx, req.(*DefaultUserRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
-func _Scan_ProcessScan_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error) (interface{}, error) {
+func _Scan_ProcessScan_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ProcessScanRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
-	out, err := srv.(ScanServer).ProcessScan(ctx, in)
-	if err != nil {
-		return nil, err
+	if interceptor == nil {
+		return srv.(ScanServer).ProcessScan(ctx, in)
 	}
-	return out, nil
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.Scan/ProcessScan",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ScanServer).ProcessScan(ctx, req.(*ProcessScanRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
-func _Scan_Convert_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error) (interface{}, error) {
+func _Scan_Convert_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ConvertRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
-	out, err := srv.(ScanServer).Convert(ctx, in)
-	if err != nil {
-		return nil, err
+	if interceptor == nil {
+		return srv.(ScanServer).Convert(ctx, in)
 	}
-	return out, nil
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.Scan/Convert",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ScanServer).Convert(ctx, req.(*ConvertRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 var _Scan_serviceDesc = grpc.ServiceDesc{
