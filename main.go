@@ -33,6 +33,7 @@ import (
 	gorilla_context "github.com/gorilla/context"
 	"github.com/gorilla/securecookie"
 	"github.com/gorilla/sessions"
+	"github.com/stapelberg/scan2drive/internal/bundled"
 	"github.com/stapelberg/scan2drive/proto"
 	"golang.org/x/net/context"
 	"golang.org/x/net/trace"
@@ -53,9 +54,9 @@ var (
 		"",
 		"Optional [host]:port address to use for offloading the conversion of scanned documents. This could be your beefy workstation, while scan2drive itself runs on a Raspberry Pi. If unspecified, conversion will be done locally.")
 
-	staticDir = flag.String("static_dir",
-		"static/",
-		"Path to the directory containing static assets (JavaScript, images, etc.)")
+	injectAssets = flag.String("inject_assets",
+		"",
+		"Path to the directory containing static assets (JavaScript, images, etc.), e.g. assets/")
 
 	// TODO: patch up the file with redirect_uris = postmessage
 	clientSecretPath = flag.String("client_secret_path",
@@ -806,8 +807,14 @@ func main() {
 
 	log.Printf("Listening on %q (gRPC) and http://%s", *rpcListenAddr, maybePrefixLocalhost(*httpListenAddr))
 
+	if *injectAssets != "" {
+		if err := bundled.Inject(*injectAssets); err != nil {
+			log.Fatal(err)
+		}
+	}
+
+	http.HandleFunc("/assets/", assetsDirHandler)
 	// TODO: verify method (POST) in each handler
-	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir(*staticDir))))
 	http.HandleFunc("/scans_dir/", scansDirHandler)
 	http.HandleFunc("/oauth", oauthHandler)
 	http.HandleFunc("/signout", signoutHandler)

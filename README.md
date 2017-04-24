@@ -231,7 +231,6 @@ sudo cp scan2drive.service /etc/systemd/system
 sudo cp examples/scan.sh /usr/bin/scan2drive-scan
 sudo cp examples/trigger.sh /usr/bin/scan2drive-trigger
 sudo mkdir -p /usr/share/scan2drive/static
-sudo cp static/scan2drive.js static/elements.vulcanized.html static/drive48.png /usr/share/scan2drive/static
 sudo systemctl daemon-reload
 sudo systemctl restart scan2drive.service
 sudo systemctl enable scan2drive.service

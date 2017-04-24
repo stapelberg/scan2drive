@@ -17,6 +17,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -31,6 +32,7 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/gorilla/sessions"
+	"github.com/stapelberg/scan2drive/internal/bundled"
 	"github.com/stapelberg/scan2drive/proto"
 	"github.com/stapelberg/scan2drive/templates"
 
@@ -175,6 +177,16 @@ func signoutHandler(w http.ResponseWriter, r *http.Request) {
 		log.Printf("Error reading users: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
+	}
+}
+
+func assetsDirHandler(w http.ResponseWriter, r *http.Request) {
+	filename := strings.TrimPrefix(r.URL.Path, "/assets/")
+	a, ok := bundled.Asset(filename)
+	if !ok {
+		http.Error(w, fmt.Sprintf("file %q not found", filename), http.StatusNotFound)
+	} else {
+		io.Copy(w, strings.NewReader(a))
 	}
 }
 
