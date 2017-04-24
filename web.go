@@ -124,7 +124,7 @@ func oauthHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		usersMu.RUnlock()
 		if oldRefreshToken == "" {
-			log.Printf("Error merging tokens: no old refresh token found")
+			log.Printf("Error merging tokens: no old refresh token found. If you re-installed scan2drive, revoke the permission on https://security.google.com/settings/u/0/security/permissions ")
 			http.Error(w, "Old refresh token not found", http.StatusInternalServerError)
 			return
 		}
