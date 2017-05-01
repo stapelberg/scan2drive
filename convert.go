@@ -18,8 +18,6 @@ import (
 	"bytes"
 	"image"
 	"image/png"
-	"io/ioutil"
-	"os"
 
 	"github.com/stapelberg/scan2drive/internal/g3"
 	"github.com/stapelberg/scan2drive/proto"
@@ -27,27 +25,21 @@ import (
 	"golang.org/x/net/trace"
 )
 
-func (s *server) Convert(ctx context.Context, in *proto.ConvertRequest) (*proto.ConvertReply, error) {
-	tr, _ := trace.FromContext(ctx)
-
-	tmpdir, err := ioutil.TempDir("", "scan2drive-convert")
-	if err != nil {
-		return nil, err
-	}
-	defer os.RemoveAll(tmpdir)
-
-	compressed := make([]*bytes.Buffer, len(in.ScannedPage))
-	binarized := make([]*image.Gray, len(in.ScannedPage))
-	for idx, page := range in.ScannedPage {
+func convertLogic(tr trace.Trace, length int, cb func(int) []byte) (pdf []byte, thumb []byte, err error) {
+	compressed := make([]*bytes.Buffer, length)
+	var first *image.Gray
+	for idx := 0; idx < length; idx++ {
+		var binarized *image.Gray
 		{
+			page := cb(idx)
 			img, _, err := image.Decode(bytes.NewReader(page))
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			tr.LazyPrintf("decoded %d bytes", len(page))
 
 			var whitePct float64
-			binarized[idx], whitePct = binarize(img)
+			binarized, whitePct = binarize(img)
 			blank := whitePct > 0.99
 			tr.LazyPrintf("white percentage of page %d is %f, blank = %v", idx, whitePct, blank)
 			if blank {
@@ -55,35 +47,46 @@ func (s *server) Convert(ctx context.Context, in *proto.ConvertRequest) (*proto.
 			}
 		}
 
-		binarized[idx] = rotate180(binarized[idx])
+		binarized = rotate180(binarized)
+		if first == nil {
+			first = binarized
+		}
 
 		// compress
 		var buf bytes.Buffer
-		if err := g3.NewEncoder(&buf).Encode(binarized[idx]); err != nil {
-			return nil, err
+		if err := g3.NewEncoder(&buf).Encode(binarized); err != nil {
+			return nil, nil, err
 		}
 		compressed[idx] = &buf
 		tr.LazyPrintf("compressed into %d bytes", buf.Len())
 	}
 
 	// create thumbnail: PNG-encode the first page
-	var thumb []byte
-	for _, img := range binarized {
-		if img == nil {
-			continue
-		}
+	if first != nil {
 		var buf bytes.Buffer
-		if err := png.Encode(&buf, img); err != nil {
-			return nil, err
+		if err := png.Encode(&buf, first); err != nil {
+			return nil, nil, err
 		}
 		thumb = buf.Bytes()
-		break
 	}
 
 	var buf bytes.Buffer
 	if err := writePDF(&buf, compressed); err != nil {
+		return nil, nil, err
+	}
+
+	return buf.Bytes(), thumb, nil
+}
+
+func (s *server) Convert(ctx context.Context, in *proto.ConvertRequest) (*proto.ConvertReply, error) {
+	tr, _ := trace.FromContext(ctx)
+
+	pdf, thumb, err := convertLogic(tr, len(in.ScannedPage), func(i int) []byte {
+		return in.ScannedPage[i]
+	})
+	if err != nil {
 		return nil, err
 	}
 
-	return &proto.ConvertReply{PDF: buf.Bytes(), Thumb: thumb}, nil
+	return &proto.ConvertReply{PDF: pdf, Thumb: thumb}, nil
 }

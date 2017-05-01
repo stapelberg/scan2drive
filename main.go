@@ -405,18 +405,18 @@ func uploadOriginals(ctx context.Context, sub, dir string) error {
 	}
 }
 
-func getScanClient() proto.ScanClient {
+func getScanClient() (client proto.ScanClient, local bool) {
 	if scanConn != nil {
 		state, err := scanConn.State()
 		if err != nil {
 			log.Printf("Error getting -scan_service connectivity state: %v", err)
 		} else {
 			if state == grpc.Ready {
-				return proto.NewScanClient(scanConn)
+				return proto.NewScanClient(scanConn), false
 			}
 		}
 	}
-	return proto.NewScanClient(localScanConn)
+	return proto.NewScanClient(localScanConn), true
 }
 
 func convert(ctx context.Context, sub, dir string) error {
@@ -441,18 +441,30 @@ func convert(ctx context.Context, sub, dir string) error {
 		req.ScannedPage = append([][]byte{contents}, req.ScannedPage...)
 	}
 
-	resp, err := getScanClient().Convert(ctx, req)
-	if err != nil {
-		return err
+	var pdf, thumb []byte
+	cl, local := getScanClient()
+	if local {
+		// short-circuit to the conversion logic to avoid RPC overhead
+		pdf, thumb, err = convertLogic(tr, len(req.ScannedPage), func(i int) []byte { return req.ScannedPage[i] })
+		if err != nil {
+			return err
+		}
+	} else {
+		resp, err := cl.Convert(ctx, req)
+		if err != nil {
+			return err
+		}
+		pdf = resp.PDF
+		thumb = resp.Thumb
 	}
 
 	pdfPath := filepath.Join(*scansDir, sub, dir, "scan.pdf")
 	thumbPath := filepath.Join(*scansDir, sub, dir, "thumb.png")
-	tr.LazyPrintf("Converted. Writing %q (%d bytes)", pdfPath, len(resp.PDF))
-	if err := ioutil.WriteFile(pdfPath, resp.PDF, 0644); err != nil {
+	tr.LazyPrintf("Converted. Writing %q (%d bytes)", pdfPath, len(pdf))
+	if err := ioutil.WriteFile(pdfPath, pdf, 0644); err != nil {
 		return err
 	}
-	return ioutil.WriteFile(thumbPath, resp.Thumb, 0644)
+	return ioutil.WriteFile(thumbPath, thumb, 0644)
 }
 
 func uploadPDF(ctx context.Context, sub, dir string) error {
