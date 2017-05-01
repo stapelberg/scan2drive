@@ -30,6 +30,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gokrazy/gokrazy"
 	gorilla_context "github.com/gorilla/context"
 	"github.com/gorilla/securecookie"
 	"github.com/gorilla/sessions"
@@ -60,18 +61,18 @@ var (
 
 	// TODO: patch up the file with redirect_uris = postmessage
 	clientSecretPath = flag.String("client_secret_path",
-		"client_secret_197950901230-jee3asvone1tnh7k2qsshm369723vkun.apps.googleusercontent.com.json",
+		"/perm/client_secret_197950901230-jee3asvone1tnh7k2qsshm369723vkun.apps.googleusercontent.com.json",
 		"Path to a client secret JSON file as described in https://developers.google.com/drive/v3/web/quickstart/go#step_1_turn_on_the_api_name")
 
 	stateDir = flag.String("state_dir",
-		"/tmp/scan2drive-state",
+		"/perm/scan2drive-state",
 		"Directory containing state such as session data and OAuth tokens for communicating with Google Drive or the destination folder id. If wiped, users will need to re-login and chose their drive folder again.")
 
 	scanScript = flag.String("scan_script",
 		"/usr/bin/scan2drive-scan",
 		"Script to run when users hit the Scan button in the web interface. This should be a wrapper around scanimage, its exit code is interpreted as SANE_Status type.")
 	scansDir = flag.String("scans_dir",
-		"/tmp/fin",
+		"/perm/scans",
 		"Directory in which -scan_script places scanned documents.")
 	scans   map[string]dirState
 	scansMu sync.RWMutex
@@ -748,6 +749,7 @@ func oauthConfigFromJSON(jsonKey []byte) (*oauth2.Config, error) {
 func main() {
 	flag.Parse()
 
+	gokrazy.WaitForClock()
 	b, err := ioutil.ReadFile(*clientSecretPath)
 	if err != nil {
 		log.Fatalf("Unable to read client secret file: %v", err)
