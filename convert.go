@@ -16,82 +16,17 @@ package main
 
 import (
 	"bytes"
-	"fmt"
+	"image"
+	"image/png"
 	"io/ioutil"
 	"os"
-	"os/exec"
-	"path/filepath"
-	"strconv"
-	"sync"
 
+	"github.com/stapelberg/scan2drive/internal/g3"
 	"github.com/stapelberg/scan2drive/proto"
 	"golang.org/x/net/context"
 	"golang.org/x/net/trace"
+	"golang.org/x/sync/errgroup"
 )
-
-func standardDeviation(page []byte) (float64, error) {
-	cmd := exec.Command(
-		"identify",
-		"-format",
-		"%[fx:standard_deviation]",
-		"/dev/stdin")
-	cmd.Stdin = bytes.NewBuffer(page)
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return 0, err
-	}
-	f, err := strconv.ParseFloat(string(out), 64)
-	return f, err
-}
-
-func tailor(idx int, page []byte, destdir string) error {
-	destpath := filepath.Join(destdir, fmt.Sprintf("page%d.tif", idx))
-
-	// scantailor-cli expects to be able to read the input file multiple times,
-	// so we need to write to a temporary file instead of feeding the file via
-	// stdin.
-	tmpfile, err := ioutil.TempFile("", "scan2drive-tailor-input")
-	if err != nil {
-		return err
-	}
-	defer os.Remove(tmpfile.Name())
-
-	if _, err := tmpfile.Write(page); err != nil {
-		return err
-	}
-	if err := tmpfile.Close(); err != nil {
-		return err
-	}
-
-	tmpdir, err := ioutil.TempDir("", "scan2drive-tailor")
-	if err != nil {
-		return err
-	}
-	defer os.RemoveAll(tmpdir)
-
-	cmd := exec.Command(
-		"scantailor-cli",
-		"--margins=0",
-		"--layout=1",
-		"--dpi=600",
-		"--content-box=0x0:4960x7016",
-		"--rotate=180",
-		tmpfile.Name(),
-		tmpdir)
-	if _, err := cmd.CombinedOutput(); err != nil {
-		return err
-	}
-	files, err := ioutil.ReadDir(tmpdir)
-	if err != nil {
-		return err
-	}
-	for _, file := range files {
-		if filepath.Ext(file.Name()) == ".tif" {
-			return os.Rename(filepath.Join(tmpdir, file.Name()), destpath)
-		}
-	}
-	return fmt.Errorf("Could not find .tif file after running scantailor-cli")
-}
 
 func (s *server) Convert(ctx context.Context, in *proto.ConvertRequest) (*proto.ConvertReply, error) {
 	tr, _ := trace.FromContext(ctx)
@@ -102,64 +37,62 @@ func (s *server) Convert(ctx context.Context, in *proto.ConvertRequest) (*proto.
 	}
 	defer os.RemoveAll(tmpdir)
 
-	var wg sync.WaitGroup
-	errors := make(chan error, len(in.ScannedPage))
+	var eg errgroup.Group
+	compressed := make([]*bytes.Buffer, len(in.ScannedPage))
+	binarized := make([]*image.Gray, len(in.ScannedPage))
 	for idx, page := range in.ScannedPage {
-		wg.Add(1)
-		go func(idx int, page []byte, tmpdir string) {
-			defer wg.Done()
-			dev, err := standardDeviation(page)
-			if err != nil {
-				errors <- err
-				return
-			}
-			blank := dev <= 0.1
-			tr.LazyPrintf("standard deviation of page %d is %f, blank = %v", idx, dev, blank)
-			if blank {
-				return
-			}
-			if err := tailor(idx, page, tmpdir); err != nil {
-				errors <- err
-			}
-		}(idx, page, tmpdir)
-	}
-	wg.Wait()
-	select {
-	case err := <-errors:
-		return nil, err
-	default:
-	}
+		idx, page := idx, page // copy
+		eg.Go(func() error {
+			{
+				img, _, err := image.Decode(bytes.NewReader(page))
+				if err != nil {
+					return err
+				}
+				tr.LazyPrintf("decoded %d bytes", len(page))
 
-	files, err := ioutil.ReadDir(tmpdir)
-	if err != nil {
-		return nil, err
+				var whitePct float64
+				binarized[idx], whitePct = binarize(img)
+				blank := whitePct > 0.99
+				tr.LazyPrintf("white percentage of page %d is %f, blank = %v", idx, whitePct, blank)
+				if blank {
+					return nil
+				}
+			}
+
+			binarized[idx] = rotate180(binarized[idx])
+
+			// compress
+			var buf bytes.Buffer
+			if err := g3.NewEncoder(&buf).Encode(binarized[idx]); err != nil {
+				return err
+			}
+			compressed[idx] = &buf
+			tr.LazyPrintf("compressed into %d bytes", buf.Len())
+			return nil
+		})
 	}
-	args := []string{
-		"-r",
-		"300",
-		"--delete",
-	}
-	for _, file := range files {
-		args = append(args, filepath.Join(tmpdir, file.Name()))
-	}
-	cmd := exec.Command("pdfbeads", args...)
-	cmd.Stderr = os.Stderr
-	// pdfbeads writes temporary files to $PWD, see
-	// https://github.com/ifad/pdfbeads/issues/4
-	cmd.Dir = tmpdir
-	tr.LazyPrintf("Calling %v", cmd.Args)
-	out, err := cmd.Output()
-	if err != nil {
-		return nil, err
-	}
-	cmd = exec.Command("convert", "/dev/stdin[0]", "png:-")
-	cmd.Stdin = bytes.NewBuffer(out)
-	cmd.Stderr = os.Stderr
-	tr.LazyPrintf("Calling %v", cmd.Args)
-	thumb, err := cmd.Output()
-	if err != nil {
+	if err := eg.Wait(); err != nil {
 		return nil, err
 	}
 
-	return &proto.ConvertReply{PDF: out, Thumb: thumb}, nil
+	// create thumbnail: PNG-encode the first page
+	var thumb []byte
+	for _, img := range binarized {
+		if img == nil {
+			continue
+		}
+		var buf bytes.Buffer
+		if err := png.Encode(&buf, img); err != nil {
+			return nil, err
+		}
+		thumb = buf.Bytes()
+		break
+	}
+
+	var buf bytes.Buffer
+	if err := writePDF(&buf, compressed); err != nil {
+		return nil, err
+	}
+
+	return &proto.ConvertReply{PDF: buf.Bytes(), Thumb: thumb}, nil
 }
