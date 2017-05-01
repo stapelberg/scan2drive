@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"time"
 
 	"github.com/stapelberg/scan2drive/internal/pdf"
 )
@@ -36,8 +37,13 @@ func Example() {
 			},
 		},
 	}
+	info := &pdf.DocumentInfo{
+		Common:       pdf.Common{ObjectName: "info"},
+		CreationDate: time.Unix(1493650928, 0),
+		Producer:     "https://github.com/stapelberg/scan2drive",
+	}
 	var buf bytes.Buffer
-	if err := pdf.NewEncoder(&buf).Encode(doc); err != nil {
+	if err := pdf.NewEncoder(&buf).Encode(doc, info); err != nil {
 		log.Fatal(err)
 	}
 	// Convert the binary data at the beginning of a PDF to a
@@ -112,20 +118,28 @@ func Example() {
 	//
 	// endstream
 	// endobj
+	// 6 0 obj
+	// <<
+	//   /CreationDate (D:20170501170208+02'00')
+	//   /Producer (https://github.com/stapelberg/scan2drive)
+	// >>
+	// endobj
 	// xref
-	// 0 6
+	// 0 7
 	// 0000000000 65535 f
 	// 0000000015 00000 n
 	// 0000000068 00000 n
 	// 0000000131 00000 n
 	// 0000000293 00000 n
 	// 0000000613 00000 n
+	// 0000000710 00000 n
 	// trailer
 	// <<
 	//   /Root 1 0 R
-	//   /Size 6
+	//   /Size 7
+	//   /Info 6 0 R
 	// >>
 	// startxref
-	// 709
+	// 827
 	// %%EOF
 }

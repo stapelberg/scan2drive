@@ -24,7 +24,12 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"time"
 )
+
+func dateString(t time.Time) string {
+	return "D:" + t.Format("20060102150405-07'00'")
+}
 
 // ObjectID is a PDF object id.
 type ObjectID int
@@ -90,6 +95,31 @@ stream
 %s
 endstream
 endobj`, c.ID, len(c.Stream), c.Stream)
+	return err
+}
+
+// DocumentInfo represents a PDF document information object.
+type DocumentInfo struct {
+	Common
+
+	CreationDate time.Time
+	Producer     string
+}
+
+// Objects implements Object.
+func (d *DocumentInfo) Objects() []Object {
+	return []Object{d}
+}
+
+// Encode implements Object.
+func (d *DocumentInfo) Encode(w io.Writer, ids map[string]ObjectID) error {
+	_, err := fmt.Fprintf(w, `
+%d 0 obj
+<<
+  /CreationDate (%s)
+  /Producer (%s)
+>>
+endobj`, int(d.ID), dateString(d.CreationDate), d.Producer)
 	return err
 }
 
@@ -275,7 +305,7 @@ func (e *Encoder) writeXrefTable(Objects []Object, xrefOffsets []int) error {
 }
 
 // Encode writes the PDF file represented by the specified catalog.
-func (e *Encoder) Encode(r *Catalog) error {
+func (e *Encoder) Encode(r *Catalog, info *DocumentInfo) error {
 	// As per “PDF Explained: How a PDF File is Written”:
 	// https://www.geekbooks.me/book/view/pdf-explained
 
@@ -289,22 +319,22 @@ func (e *Encoder) Encode(r *Catalog) error {
 	}
 
 	// Flatten the Object graph into a slice
-	Objects := r.Objects()
+	objects := append(r.Objects(), info.Objects()...)
 
 	// (3.) Assign ids from 1 to n and store them in a lookup table
 	// (some Objects need to resolve name references when encoding).
-	ids := make(map[string]ObjectID, len(Objects))
-	for idx, Object := range Objects {
+	ids := make(map[string]ObjectID, len(objects))
+	for idx, obj := range objects {
 		id := ObjectID(idx + 1)
-		Object.SetID(id)
-		ids[Object.Name()] = id
+		obj.SetID(id)
+		ids[obj.Name()] = id
 	}
 
 	// (4.) Output the Objects one by one, starting with Object number
 	// one, recording the byte offset of each for the cross-reference
 	// table.
-	xrefOffsets := make([]int, len(Objects))
-	for idx, obj := range Objects {
+	xrefOffsets := make([]int, len(objects))
+	for idx, obj := range objects {
 		xrefOffsets[idx] = e.w.cnt + 1
 		if err := obj.Encode(e.w, ids); err != nil {
 			return err
@@ -314,7 +344,7 @@ func (e *Encoder) Encode(r *Catalog) error {
 	// (5.) Write the cross-reference table.
 	xrefOffset := e.w.cnt
 
-	if err := e.writeXrefTable(Objects, xrefOffsets); err != nil {
+	if err := e.writeXrefTable(objects, xrefOffsets); err != nil {
 		return err
 	}
 
@@ -323,11 +353,12 @@ func (e *Encoder) Encode(r *Catalog) error {
 <<
   /Root %v
   /Size %d
+  /Info %v
 >>
 startxref
 %d
 %%%%EOF
-`, ids["catalog"], len(Objects)+1, xrefOffset); err != nil {
+`, ids["catalog"], len(objects)+1, ids["info"], xrefOffset); err != nil {
 		return err
 	}
 
