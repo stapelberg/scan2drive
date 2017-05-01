@@ -25,7 +25,6 @@ import (
 	"github.com/stapelberg/scan2drive/proto"
 	"golang.org/x/net/context"
 	"golang.org/x/net/trace"
-	"golang.org/x/sync/errgroup"
 )
 
 func (s *server) Convert(ctx context.Context, in *proto.ConvertRequest) (*proto.ConvertReply, error) {
@@ -37,42 +36,34 @@ func (s *server) Convert(ctx context.Context, in *proto.ConvertRequest) (*proto.
 	}
 	defer os.RemoveAll(tmpdir)
 
-	var eg errgroup.Group
 	compressed := make([]*bytes.Buffer, len(in.ScannedPage))
 	binarized := make([]*image.Gray, len(in.ScannedPage))
 	for idx, page := range in.ScannedPage {
-		idx, page := idx, page // copy
-		eg.Go(func() error {
-			{
-				img, _, err := image.Decode(bytes.NewReader(page))
-				if err != nil {
-					return err
-				}
-				tr.LazyPrintf("decoded %d bytes", len(page))
-
-				var whitePct float64
-				binarized[idx], whitePct = binarize(img)
-				blank := whitePct > 0.99
-				tr.LazyPrintf("white percentage of page %d is %f, blank = %v", idx, whitePct, blank)
-				if blank {
-					return nil
-				}
+		{
+			img, _, err := image.Decode(bytes.NewReader(page))
+			if err != nil {
+				return nil, err
 			}
+			tr.LazyPrintf("decoded %d bytes", len(page))
 
-			binarized[idx] = rotate180(binarized[idx])
-
-			// compress
-			var buf bytes.Buffer
-			if err := g3.NewEncoder(&buf).Encode(binarized[idx]); err != nil {
-				return err
+			var whitePct float64
+			binarized[idx], whitePct = binarize(img)
+			blank := whitePct > 0.99
+			tr.LazyPrintf("white percentage of page %d is %f, blank = %v", idx, whitePct, blank)
+			if blank {
+				continue
 			}
-			compressed[idx] = &buf
-			tr.LazyPrintf("compressed into %d bytes", buf.Len())
-			return nil
-		})
-	}
-	if err := eg.Wait(); err != nil {
-		return nil, err
+		}
+
+		binarized[idx] = rotate180(binarized[idx])
+
+		// compress
+		var buf bytes.Buffer
+		if err := g3.NewEncoder(&buf).Encode(binarized[idx]); err != nil {
+			return nil, err
+		}
+		compressed[idx] = &buf
+		tr.LazyPrintf("compressed into %d bytes", buf.Len())
 	}
 
 	// create thumbnail: PNG-encode the first page
