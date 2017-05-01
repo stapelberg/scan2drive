@@ -435,7 +435,6 @@ func convert(ctx context.Context, sub, dir string) error {
 		if err != nil {
 			return err
 		}
-		// TODO: make this optional
 		// Prepend (!) the page — the ScanSnap iX500’s document feeder scans
 		// the last page first, so we need to reverse the order.
 		req.ScannedPage = append([][]byte{contents}, req.ScannedPage...)
@@ -650,34 +649,42 @@ func (s *server) ProcessScan(ctx context.Context, in *proto.ProcessScanRequest) 
 	// examineScansDir failing is okay. We can still process the scan, the user
 	// just won’t see progress.
 	// TODO: add a parameter to restrict examineScansDir to just the scan that came in to avoid excessive disk i/o
+	examineScansDir()
 	scansMu.RLock()
-	_, ok := scans[dir]
+	state, _ := scans[dir]
 	scansMu.RUnlock()
-	if !ok {
-		examineScansDir()
-	}
+
+	tr, _ := trace.FromContext(ctx)
+	tr.LazyPrintf("state = %#v", state)
 
 	// Upload the originals in the background while converting (which takes the
 	// bulk of the time).
 	uploadOriginalsRes := make(chan error)
-	go func() {
-		uploadOriginalsRes <- uploadOriginals(ctx, sub, dir)
-	}()
-
-	if err := convert(ctx, sub, dir); err != nil {
-		return nil, fmt.Errorf("Converting: %v", err)
+	if !state.UploadedOriginals {
+		go func() {
+			uploadOriginalsRes <- uploadOriginals(ctx, sub, dir)
+		}()
 	}
-	createCompleteMarker(sub, dir, "convert")
 
-	if err := <-uploadOriginalsRes; err != nil {
-		return nil, fmt.Errorf("Uploading originals: %v", err)
+	if !state.Converted {
+		if err := convert(ctx, sub, dir); err != nil {
+			return nil, fmt.Errorf("Converting: %v", err)
+		}
+		createCompleteMarker(sub, dir, "convert")
 	}
-	createCompleteMarker(sub, dir, "uploadoriginals")
 
-	if err := uploadPDF(ctx, sub, dir); err != nil {
-		return nil, fmt.Errorf("Uploading PDF: %v", err)
+	if !state.UploadedOriginals {
+		if err := <-uploadOriginalsRes; err != nil {
+			return nil, fmt.Errorf("Uploading originals: %v", err)
+		}
+		createCompleteMarker(sub, dir, "uploadoriginals")
 	}
-	createCompleteMarker(sub, dir, "uploadpdf")
+	if !state.UploadedPDF {
+		if err := uploadPDF(ctx, sub, dir); err != nil {
+			return nil, fmt.Errorf("Uploading PDF: %v", err)
+		}
+		createCompleteMarker(sub, dir, "uploadpdf")
+	}
 
 	newName, err := ioutil.ReadFile(filepath.Join(*scansDir, sub, dir, "rename"))
 	if err != nil && !os.IsNotExist(err) {
