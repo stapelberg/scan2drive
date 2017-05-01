@@ -826,6 +826,7 @@ func main() {
 
 	go http.ListenAndServe(*httpListenAddr, gorilla_context.ClearHandler(http.DefaultServeMux))
 	s := grpc.NewServer(grpc.MaxMsgSize(10 * 1024 * 1024))
+	go LocalScanner()
 	proto.RegisterScanServer(s, &server{})
 	s.Serve(ln)
 }
