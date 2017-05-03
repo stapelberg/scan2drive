@@ -39,7 +39,7 @@ import (
 )
 
 func scan(tr trace.Trace, dev io.ReadWriter) error {
-	client := proto.NewScanClient(localScanConn)
+	client := proto.NewScanClient(scanConn)
 	resp, err := client.DefaultUser(context.Background(), &proto.DefaultUserRequest{})
 	if err != nil {
 		return err

@@ -83,8 +83,7 @@ var (
 
 	oauthConfig *oauth2.Config
 
-	scanConn      *grpc.ClientConn
-	localScanConn *grpc.ClientConn
+	scanConn *grpc.ClientConn
 )
 
 type driveFolder struct {
@@ -405,20 +404,6 @@ func uploadOriginals(ctx context.Context, sub, dir string) error {
 	}
 }
 
-func getScanClient() (client proto.ScanClient, local bool) {
-	if scanConn != nil {
-		state, err := scanConn.State()
-		if err != nil {
-			log.Printf("Error getting -scan_service connectivity state: %v", err)
-		} else {
-			if state == grpc.Ready {
-				return proto.NewScanClient(scanConn), false
-			}
-		}
-	}
-	return proto.NewScanClient(localScanConn), true
-}
-
 func convert(ctx context.Context, sub, dir string) error {
 	tr, _ := trace.FromContext(ctx)
 	files, err := ioutil.ReadDir(filepath.Join(*scansDir, sub, dir))
@@ -442,21 +427,22 @@ func convert(ctx context.Context, sub, dir string) error {
 	}
 
 	var pdf, thumb []byte
-	cl, local := getScanClient()
-	if local {
-		// short-circuit to the conversion logic to avoid RPC overhead
-		pdf, thumb, err = convertLogic(tr, len(req.ScannedPage), func(i int) []byte { return req.ScannedPage[i] })
-		if err != nil {
-			return err
-		}
-	} else {
-		resp, err := cl.Convert(ctx, req)
-		if err != nil {
-			return err
-		}
-		pdf = resp.PDF
-		thumb = resp.Thumb
+	cl := proto.NewScanClient(scanConn)
+	// TODO: re-implement local RPC short-circuit
+	// if local {
+	// 	// short-circuit to the conversion logic to avoid RPC overhead
+	// 	pdf, thumb, err = convertLogic(tr, len(req.ScannedPage), func(i int) []byte { return req.ScannedPage[i] })
+	// 	if err != nil {
+	// 		return err
+	// 	}
+	// } else {
+	resp, err := cl.Convert(ctx, req)
+	if err != nil {
+		return err
 	}
+	pdf = resp.PDF
+	thumb = resp.Thumb
+	//	}
 
 	pdfPath := filepath.Join(*scansDir, sub, dir, "scan.pdf")
 	thumbPath := filepath.Join(*scansDir, sub, dir, "thumb.png")
@@ -815,13 +801,10 @@ func main() {
 		log.Fatal(err)
 	}
 
-	if *scanService != "" {
-		scanConn, err = grpc.Dial(*scanService, grpc.WithInsecure())
-		if err != nil {
-			log.Fatal(err)
-		}
+	pr := preferRemote{
+		local: maybePrefixLocalhost(*rpcListenAddr),
 	}
-	localScanConn, err = grpc.Dial(maybePrefixLocalhost(*rpcListenAddr), grpc.WithInsecure())
+	scanConn, err = grpc.Dial(*scanService, grpc.WithInsecure(), grpc.WithBalancer(&pr))
 	if err != nil {
 		log.Fatal(err)
 	}
