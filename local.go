@@ -178,9 +178,14 @@ func scan(tr trace.Trace, dev io.ReadWriter) error {
 			cnt++
 			cnt := cnt // copy
 			eg.Go(func() error {
-				m := &fss500.Image{Pixels: pixels[side]}
+				// Convert the pixel data to *image.RGBA, for which image/jpeg has a specialized version.
+				// This brings down JPEG encoding times from 30s to 15s.
+				start := time.Now()
+				m := fss500.ToRGBA(pixels[side])
+				tr.LazyPrintf("converted to *image.RGBA in %v", time.Since(start))
+
 				fn := filepath.Join(scanDir, fmt.Sprintf("page%d.jpg", cnt))
-				tr.LazyPrintf("saving as JPG in %q", fn)
+				start = time.Now()
 				o, err := os.Create(fn)
 				if err != nil {
 					return err
@@ -199,27 +204,32 @@ func scan(tr trace.Trace, dev io.ReadWriter) error {
 					return err
 				}
 				createCompleteMarker(resp.User, relName, "scan")
-				tr.LazyPrintf("saved")
+				tr.LazyPrintf("saved to JPG in %q in %v", fn, time.Since(start))
 				return nil
 			})
 
 			eg.Go(func() error {
 				// binarize (takes 3s on a Raspberry Pi 3)
+				start := time.Now()
 				bin, whitePct := binarizeFSS500(pixels[side])
 				blank := whitePct > 0.99
-				tr.LazyPrintf("white percentage of page %d is %f, blank = %v", cnt, whitePct, blank)
+				tr.LazyPrintf("white percentage of page %d is %f, blank = %v (binarized in %v)", cnt, whitePct, blank, time.Since(start))
 				if blank {
 					return nil
 				}
 
-				// rotate (takes 5s on a Raspberry Pi 3)
+				start = time.Now()
+				// rotate (takes 7.9s on a Raspberry Pi 3)
 				bin = rotate180(bin)
+				tr.LazyPrintf("rotated in %v", time.Since(start))
 
-				// compress (takes 22s on a Raspberry Pi 3)
+				// compress (takes 3.4s on a Raspberry Pi 3)
 				var buf bytes.Buffer
+				start = time.Now()
 				if err := g3.NewEncoder(&buf).Encode(bin); err != nil {
 					return err
 				}
+				tr.LazyPrintf("compressed in %v", time.Since(start))
 				// Prepend (!) the page — the ScanSnap iX500’s
 				// document feeder scans the last page first, so we
 				// need to reverse the order.
