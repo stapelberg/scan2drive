@@ -99,11 +99,11 @@ func (e *Encoder) encodeRun(c color.Gray, l int) error {
 	sixtyFours := l / 64
 	remainder := l % 64
 
-	terminating := terminatingCodesWhite
-	makeup := makeupCodesWhite
+	terminating := terminatingCodesWhite[:]
+	makeup := makeupCodesWhite[:]
 	if c == black {
-		terminating = terminatingCodesBlack
-		makeup = makeupCodesBlack
+		terminating = terminatingCodesBlack[:]
+		makeup = makeupCodesBlack[:]
 	}
 
 	for sixtyFours > 40 {
