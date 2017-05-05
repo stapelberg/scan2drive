@@ -12,29 +12,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// +build !arm64
-
 package fss500
 
 import (
 	"image"
 )
 
+// defined in image_arm64.s
+func rgb2rgba(res, pixels []byte)
+
 // ToRGBA copies one scanned DIN A4 sized page in 600 dpi
 // (i.e. 4960x7016 pixels) into an *image.RGBA.
 func ToRGBA(pixels []byte) *image.RGBA {
-	const bytesPerLine = 3 * 4960
-	const channels = 3
-	img := image.NewRGBA(image.Rect(0, 0, 4960, 7016))
-	for y := 0; y < 7016; y++ {
-		for x := 0; x < 4960; x++ {
-			i := bytesPerLine*y + channels*x
-			offset := y*4*4960 + x*4
-			img.Pix[offset+0] = pixels[i+0]
-			img.Pix[offset+1] = pixels[i+1]
-			img.Pix[offset+2] = pixels[i+2]
-			img.Pix[offset+3] = 0xff
-		}
+	res := make([]byte, (len(pixels)/3)*4)
+	rgb2rgba(res, pixels)
+	return &image.RGBA{
+		Pix:    res,
+		Stride: 4 * 4960,
+		Rect:   image.Rect(0, 0, 4960, 7016),
 	}
-	return img
 }
