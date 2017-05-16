@@ -830,6 +830,7 @@ func main() {
 
 	log.Printf("Listening on %q (gRPC) and http://%s", *rpcListenAddr, maybePrefixLocalhost(*httpListenAddr))
 
+	mux.defaultMux.HandleFunc("/constants.js", constantsHandler)
 	mux.defaultMux.HandleFunc("/assets/", assetsDirHandler)
 	// TODO: verify method (POST) in each handler
 	mux.defaultMux.HandleFunc("/scans_dir/", scansDirHandler)

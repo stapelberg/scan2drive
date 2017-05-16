@@ -11,7 +11,7 @@ function start() {
     gapi.load('auth2', function() {
         // TODO: avoid a global variable here.
         auth2 = gapi.auth2.init({
-            client_id: '197950901230-jee3asvone1tnh7k2qsshm369723vkun.apps.googleusercontent.com',
+            client_id: clientID,
             // The “profile” and “email” scope are always requested.
             scope: 'https://www.googleapis.com/auth/drive',
         });
@@ -30,8 +30,10 @@ function start() {
                 $('#settings-button').show();
                 // TODO: open settings button in case drive folder is not configured
             }
-        }, function() {
-            console.log('onFailure');
+        }, function(err) {
+	    var errorp = $('#error p');
+	    errorp.text('Error ' + err.error + ': ' + err.details);
+	    console.log('OAuth2 error', err);
         });
     });
 

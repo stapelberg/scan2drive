@@ -16,6 +16,7 @@ var IndexTpl = template.Must(template.New("Index").Parse(`<!DOCTYPE html>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto+Mono:400,700">
 <link rel="import" href="/assets/elements.vulcanized.html" />
 <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.8.2/jquery.min.js"></script>
+<script type="text/javascript" src="/constants.js"></script>
 <script type="text/javascript" src="/assets/scan2drive.js"></script>
 <style is="custom-style" include="iron-flex iron-flex-alignment">
 body {

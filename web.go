@@ -45,6 +45,11 @@ const sessionCookieName = "scan2drive"
 
 var store sessions.Store
 
+func constantsHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	fmt.Fprintf(w, `var clientID = "%s";`, oauthConfig.ClientID)
+}
+
 func indexHandler(w http.ResponseWriter, r *http.Request) {
 	session, err := store.Get(r, sessionCookieName)
 	if err != nil {
