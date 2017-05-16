@@ -830,17 +830,17 @@ func main() {
 
 	log.Printf("Listening on %q (gRPC) and http://%s", *rpcListenAddr, maybePrefixLocalhost(*httpListenAddr))
 
-	mux.defaultMux.HandleFunc("/constants.js", constantsHandler)
-	mux.defaultMux.HandleFunc("/assets/", assetsDirHandler)
+	http.HandleFunc("/constants.js", constantsHandler)
+	http.HandleFunc("/assets/", assetsDirHandler)
 	// TODO: verify method (POST) in each handler
-	mux.defaultMux.HandleFunc("/scans_dir/", scansDirHandler)
-	mux.defaultMux.HandleFunc("/oauth", oauthHandler)
-	mux.defaultMux.HandleFunc("/signout", signoutHandler)
-	mux.defaultMux.HandleFunc("/storedrivefolder", storeDriveFolder)
-	mux.defaultMux.HandleFunc("/startscan", startScanHandler)
-	mux.defaultMux.HandleFunc("/scanstatus", scanStatusHandler)
-	mux.defaultMux.HandleFunc("/renamescan", renameScanHandler)
-	mux.defaultMux.HandleFunc("/", indexHandler)
+	http.HandleFunc("/scans_dir/", scansDirHandler)
+	http.HandleFunc("/oauth", oauthHandler)
+	http.HandleFunc("/signout", signoutHandler)
+	http.HandleFunc("/storedrivefolder", storeDriveFolder)
+	http.HandleFunc("/startscan", startScanHandler)
+	http.HandleFunc("/scanstatus", scanStatusHandler)
+	http.HandleFunc("/renamescan", renameScanHandler)
+	http.HandleFunc("/", indexHandler)
 
 	go LocalScanner()
 	proto.RegisterScanServer(s, &server{})

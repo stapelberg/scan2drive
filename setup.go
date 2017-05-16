@@ -27,7 +27,7 @@ type setupMux struct {
 func newSetupMux() *setupMux {
 	m := &setupMux{
 		setupMux:   http.NewServeMux(),
-		defaultMux: http.NewServeMux(),
+		defaultMux: http.DefaultServeMux,
 	}
 	m.cond = sync.NewCond(&m.mu)
 	return m
