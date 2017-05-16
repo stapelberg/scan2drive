@@ -30,7 +30,7 @@ Example:
 
 Example - top card image:
 
-    <paper-card heading="Card Title" image="/path/to/image.png">
+    <paper-card heading="Card Title" image="/path/to/image.png" alt="image">
       ...
     </paper-card>
 
@@ -88,6 +88,7 @@ Custom property | Description | Default
       }
 
       .header iron-image {
+        display: block;
         width: 100%;
         --iron-image-width: 100%;
         pointer-events: none;
@@ -128,8 +129,15 @@ Custom property | Description | Default
     </style>
 
     <div class="header">
-      <iron-image hidden$="[[!image]]" src="[[image]]" preload$="[[preloadImage]]" fade$="[[fadeImage]]"></iron-image>
-      <div hidden$="[[!heading]]" class$="[[_computeHeadingClass(image)]]">[[heading]]</div>
+      <iron-image
+          hidden$="[[!image]]"
+          aria-hidden$="[[_isHidden(image)]]"
+          src="[[image]]"
+          alt="[[alt]]"
+          placeholder="[[placeholderImage]]"
+          preload="[[preloadImage]]"
+          fade="[[fadeImage]]"></iron-image>
+      <div hidden$="[[!heading]]" class$="title-text [[_computeHeadingClass(image)]]">[[heading]]</div>
     </div>
 
     <content></content>
@@ -158,6 +166,13 @@ Custom property | Description | Default
         },
 
         /**
+         * The text alternative of the card's title image.
+         */
+        alt: {
+          type: String
+        },
+
+        /**
          * When `true`, any change to the image url property will cause the
          * `placeholder` image to be shown until the image is fully rendered.
          */
@@ -173,6 +188,15 @@ Custom property | Description | Default
         fadeImage: {
           type: Boolean,
           value: false
+        },
+
+        /**
+         * This image will be used as a background/placeholder until the src image has
+         * loaded. Use of a data-URI for placeholder is encouraged for instant rendering.
+         */
+        placeholderImage: {
+          type: String,
+          value: null
         },
 
         /**
@@ -204,17 +228,26 @@ Custom property | Description | Default
           computed: '_computeAnimated(animatedShadow)'
         }
       },
+      
+      /**
+       * Format function for aria-hidden. Use the ! operator results in the
+       * empty string when given a falsy value.
+       */
+      _isHidden: function(image) {
+        return image ? 'false' : 'true';
+      },
 
       _headingChanged: function(heading) {
-        var label = this.getAttribute('aria-label');
-        this.setAttribute('aria-label', heading);
+        var currentHeading = this.getAttribute('heading'),
+            currentLabel = this.getAttribute('aria-label');
+
+        if (typeof currentLabel !== 'string' || currentLabel === currentHeading) {
+          this.setAttribute('aria-label', heading);
+        }
       },
 
       _computeHeadingClass: function(image) {
-        var cls = 'title-text';
-        if (image)
-          cls += ' over-image';
-        return cls;
+        return image ? ' over-image' : '';
       },
 
       _computeAnimated: function(animatedShadow) {

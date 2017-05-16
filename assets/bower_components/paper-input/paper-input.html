@@ -74,6 +74,23 @@ style this element.
         display: block;
       }
 
+      :host([focused]) {
+        outline: none;
+      }
+
+      :host([hidden]) {
+        display: none !important;
+      }
+
+      input::-webkit-outer-spin-button,                                                                                                     
+      input::-webkit-inner-spin-button {                                                                                                    
+        @apply(--paper-input-container-input-webkit-spinner);                                                                                                                                                                                      
+      }
+      
+      input::-webkit-clear-button {
+        @apply(--paper-input-container-input-webkit-clear);  
+      }
+
       input::-webkit-input-placeholder {
         color: var(--paper-input-container-color, --secondary-text-color);
       }
@@ -86,8 +103,16 @@ style this element.
         color: var(--paper-input-container-color, --secondary-text-color);
       }
 
+      input::-ms-clear {
+        @apply(--paper-input-container-ms-clear);
+      }
+
       input:-ms-input-placeholder {
         color: var(--paper-input-container-color, --secondary-text-color);
+      }
+
+      label {
+        pointer-events: none;
       }
     </style>
 
@@ -95,7 +120,7 @@ style this element.
 
       <content select="[prefix]"></content>
 
-      <label hidden$="[[!label]]">[[label]]</label>
+      <label hidden$="[[!label]]" aria-hidden="true" for="input">[[label]]</label>
 
       <input is="iron-input" id="input"
         aria-labelledby$="[[_ariaLabelledBy]]"
@@ -135,7 +160,7 @@ style this element.
       <content select="[suffix]"></content>
 
       <template is="dom-if" if="[[errorMessage]]">
-        <paper-input-error>[[errorMessage]]</paper-input-error>
+        <paper-input-error aria-live="assertive">[[errorMessage]]</paper-input-error>
       </template>
 
       <template is="dom-if" if="[[charCounter]]">

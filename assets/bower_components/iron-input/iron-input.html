@@ -136,7 +136,12 @@ is separate from validation, and `allowed-pattern` does not affect how the input
       return canDispatch;
     },
 
-    _dispatchEventFirefoxIE: function() {
+    /**
+     * @this {Node}
+     * @param {!Event} event
+     * @return {boolean}
+     */
+    _dispatchEventFirefoxIE: function(event) {
       // Due to Firefox bug, events fired on disabled form controls can throw
       // errors; furthermore, neither IE nor Firefox will actually dispatch
       // events from disabled form controls; as such, we toggle disable around
@@ -144,8 +149,9 @@ is separate from validation, and `allowed-pattern` does not affect how the input
       // See issue #47 for details
       var disabled = this.disabled;
       this.disabled = false;
-      this._origDispatchEvent.apply(this, arguments);
+      var defaultPrevented = this._origDispatchEvent(event);
       this.disabled = disabled;
+      return defaultPrevented
     },
 
     get _patternRegExp() {

@@ -83,6 +83,12 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
     </template>
   </test-fixture>
 
+  <test-fixture id="type-number-char-counter">
+    <template>
+      <paper-input type="number" char-counter value="1138"></paper-input>
+    </template>
+  </test-fixture>
+
   <test-fixture id="always-float-label">
     <template>
       <paper-input always-float-label label="foo"></paper-input>
@@ -155,6 +161,12 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
         assert.isTrue(inputContent.classList.contains('label-is-floating'), 'label is floating');
       });
 
+      test('label does not receive pointer events', function() {
+        var input = fixture('always-float-label');
+        var label = Polymer.dom(input.root).querySelector('label');
+        assert.equal(getComputedStyle(label).pointerEvents, 'none');
+      });
+
       test('error message is displayed', function() {
         var input = fixture('error');
         forceXIfStamp(input);
@@ -179,6 +191,14 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
         assert.equal(counter._charCounterStr, input.value.length, 'character counter shows the value length');
       });
 
+      test('character counter is correct for type=number', function() {
+        var input = fixture('type-number-char-counter');
+        forceXIfStamp(input);
+        var counter = Polymer.dom(input.root).querySelector('paper-input-char-counter')
+        assert.ok(counter, 'paper-input-char-counter exists');
+        assert.equal(counter._charCounterStr, input.value.toString().length, 'character counter shows the value length');
+      });
+
       test('validator is used', function() {
         var input = fixture('validator');
         assert.ok(input.inputElement.invalid, 'input is invalid');
@@ -195,6 +215,30 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
         assert.equal(ironInput.selectionStart, 2, 'selectionStart is preserved');
         assert.equal(ironInput.selectionEnd, 2, 'selectionEnd is preserved');
+      });
+
+      test('setting autofocus to true implictly acquires focus', function(done) {
+        var input = fixture('basic');
+        var inputFocusSpy = sinon.spy(input.inputElement, 'focus');
+        window.setTimeout(function() {
+          assert(inputFocusSpy.called);
+          done();
+        }, 50);
+        input.autofocus = true;
+      });
+
+      test('autofocus doesn\'t grab focus if another element already has it', function(done) {
+        var inputs = fixture('multiple-inputs');
+        var inputFocusSpies = inputs.map(function(input) {
+          return sinon.spy(input.inputElement, 'focus');
+        });
+        window.setTimeout(function() {
+          assert(inputFocusSpies[0].called, 'first autofocus input with grabbed focus');
+          assert(!inputFocusSpies[1].called, 'second autofocus input let first input keep focus');
+          done();
+        }, 50);
+        inputs[0].autofocus = true;
+        inputs[1].autofocus = true; // Shouldn't cause focus to change
       });
 
     });
@@ -248,6 +292,16 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
         assert(!input.focused, 'input is blurred');
         MockInteractions.focus(input.inputElement);
         assert(input.focused, 'input is focused');
+        MockInteractions.blur(input.inputElement);
+        assert(!input.focused, 'input is blurred');
+      });
+
+      test('focusing then bluring with shift-tab removes the focused attribute correctly', function() {
+        MockInteractions.focus(input);
+        assert(input.focused, 'input is focused');
+
+        // Fake a shift-tab induced blur by forcing the flag.
+        input._shiftTabPressed = true;
         MockInteractions.blur(input.inputElement);
         assert(!input.focused, 'input is blurred');
       });

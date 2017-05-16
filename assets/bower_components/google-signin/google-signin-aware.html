@@ -1,3 +1,19 @@
+<!--
+Copyright 2014 Google Inc
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    https://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
+
 <link rel="import" href="../polymer/polymer.html">
 <link rel="import" href="../google-apis/google-js-api.html">
 
@@ -13,8 +29,9 @@
       'appPackageName': 'apppackagename',
       'clientId': 'clientid',
       'cookiePolicy': 'cookiepolicy',
-      'requestVisibleActions': 'requestvisibleactions',
-      'hostedDomain': 'hostedDomain'
+      'hostedDomain': 'hostedDomain',
+      'openidPrompt': 'prompt',
+      'requestVisibleActions': 'requestvisibleactions'
     };
 
     /**
@@ -42,7 +59,7 @@
         if (this._clientId && val && val != this._clientId) {
           throw new Error('clientId cannot change. Values do not match. New: ' + val + ' Old:' + this._clientId);
         }
-        if (val) {
+        if (val && val != this._clientId) {
           this._clientId = val;
           this.initAuth2();
         }
@@ -113,6 +130,44 @@
         }
         if (val)
           this._hostedDomain = val;
+      },
+
+     /**
+       * oauth2 argument, set by google-signin-aware
+       */
+      _openidPrompt: '',
+
+      get openidPrompt() {
+        return this._openidPrompt;
+      },
+
+      set openidPrompt(val) {
+        if (typeof val !== 'string') {
+          throw new Error(
+              'openidPrompt must be a string. Received ' + typeof val);
+        }
+        if (val) {
+          var values = val.split(' ');
+          values = values.map(function(v) {
+            return v.trim();
+          });
+          values = values.filter(function(v) {
+            return v;
+          });
+          var validValues = {none: 0, login: 0, consent: 0, select_account: 0};
+          values.forEach(function(v) {
+            if (v == 'none' && values.length > 1) {
+              throw new Error(
+                  'none cannot be combined with other openidPrompt values');
+            }
+            if (!(v in validValues)) {
+              throw new Error(
+                  'invalid openidPrompt value ' + v +
+                  '. Valid values: ' + Object.keys(validValues).join(', '));
+            }
+          });
+        }
+        this._openidPrompt = val;
       },
 
       /** Is offline access currently enabled in the google-signin-aware element? */
@@ -191,13 +246,13 @@
           'hosted_domain': this.hostedDomain
         });
 
-        auth.currentUser.listen(this.handleUserUpdate.bind(this));
+        auth['currentUser'].listen(this.handleUserUpdate.bind(this));
 
         auth.then(
-          function success() {
+          function onFulfilled() {
           // Let the current user listener trigger the changes.
           },
-          function error(error) {
+          function onRejected(error) {
             console.error(error);
           }
         );
@@ -325,7 +380,7 @@
       },
       /**
        * attached <google-signin-aware>
-       * @param {<google-signin-aware>} aware element to add
+       * @param {!GoogleSigninAwareElement} aware element to add
        */
       attachSigninAware: function(aware) {
         if (this.signinAwares.indexOf(aware) == -1) {
@@ -382,7 +437,7 @@
         }, this);
 
         var promise;
-        var user = gapi.auth2.getAuthInstance().currentUser.get();
+        var user = gapi.auth2.getAuthInstance()['currentUser'].get();
         if (!(this.offline || this.offlineAlwaysPrompt)) {
           if (user.getGrantedScopes()) {
             // additional auth, skip multiple account dialog
@@ -405,13 +460,13 @@
           promise = gapi.auth2.getAuthInstance().grantOfflineAccess(params);
         }
         promise.then(
-          function success(response) {
+          function onFulfilled(response) {
             // If login was offline, response contains one string "code"
             // Otherwise it contains the user object already
             var newUser;
             if (response.code) {
               AuthEngine.offlineGranted = true;
-              newUser = gapi.auth2.getAuthInstance().currentUser.get();
+              newUser = gapi.auth2.getAuthInstance()['currentUser'].get();
               AuthEngine.setOfflineCode(response.code);
             } else {
               newUser = response;
@@ -420,14 +475,14 @@
             var authResponse = newUser.getAuthResponse();
             // Let the current user listener trigger the changes.
           },
-          function error(error) {
-            if ("Access denied." == error.reason) {
-              // Access denied is not an error, user hit cancel
-              return;
-            } else {
-              console.error(error);
+          function onRejected(error) {
+            // Access denied is not an error, user hit cancel
+            if ("Access denied." !== error.reason) {
+              this.signinAwares.forEach(function(awareInstance) {
+                awareInstance.errorNotify(error);
+              });
             }
-          }
+          }.bind(this)
         );
       },
 
@@ -435,10 +490,10 @@
       signOut: function() {
         this.assertAuthInitialized();
         gapi.auth2.getAuthInstance().signOut().then(
-          function success() {
+          function onFulfilled() {
           // Let the current user listener trigger the changes.
           },
-          function error(error) {
+          function onRejected(error) {
             console.error(error);
           }
         );
@@ -478,7 +533,7 @@ You can bind to `isAuthorized` property to monitor authorization state.
     <script>
       var aware = document.querySelector('#awareness');
       aware.handleSignin = function(response) {
-        var user = gapi.auth2.getAuthInstance().currentUser.get();
+        var user = gapi.auth2.getAuthInstance()['currentUser'].get();
         console.log('User name: ' + user.getBasicProfile().getName());
       };
       aware.handleOffline = function(response) {
@@ -498,17 +553,30 @@ You can bind to `isAuthorized` property to monitor authorization state.
        * @param {Object} result Authorization result.
        * @event google-signin-aware-success
        */
+
       /**
        * Fired when an offline authorization is successful.
-       * @param {Object} detail
-       * @param {string} detail.code The one-time authorization code from Google.
-       *     Your application can exchange this for an `access_token` and `refresh_token`
+       * @param {{code: string}} detail -
+       *     code: The one-time authorization code from Google.
+       *         Your application can exchange this for an `access_token` and `refresh_token`
        * @event google-signin-offline-success
        */
+
       /**
        * Fired when this scope is not authorized
        * @event google-signin-aware-signed-out
        */
+
+      /**
+       * Fired when there is an error during the signin flow.
+       * @param {Object} detail The error object returned from the OAuth 2 flow.
+       * @event google-signin-aware-error
+       */
+
+      /**
+       * This block is needed so the previous @param is not assigned to the next property.
+       */
+
       properties: {
         /**
          * App package name for android over-the-air installs.
@@ -518,6 +586,7 @@ You can bind to `isAuthorized` property to monitor authorization state.
           type: String,
           observer: '_appPackageNameChanged'
         },
+
         /**
          * a Google Developers clientId reference
          */
@@ -591,6 +660,26 @@ You can bind to `isAuthorized` property to monitor authorization state.
         },
 
         /**
+         * Space-delimited, case-sensitive list of strings that
+         * specifies whether the the user is prompted for reauthentication
+         * and/or consent. The defined values are:
+         *   none: do not display authentication or consent pages.
+         *     This value is mutually exclusive with the rest.
+         *   login: always prompt the user for reauthentication.
+         *   consent: always show consent screen.
+         *   select_account: always show account selection page.
+         *     This enables a user who has multiple accounts to select amongst
+         *     the multiple accounts that they might have current sessions for.
+         * For more information, see "prompt" parameter description in
+         * https://openid.net/specs/openid-connect-basic-1_0.html#RequestParameters
+         */
+        openidPrompt: {
+          type: String,
+          value: '',
+          observer: '_openidPromptChanged'
+        },
+
+        /**
          * True if user is signed in
          */
         signedIn: {
@@ -647,6 +736,10 @@ You can bind to `isAuthorized` property to monitor authorization state.
         AuthEngine.signOut();
       },
 
+      errorNotify: function(error) {
+        this.fire('google-signin-aware-error', error);
+      },
+
       _appPackageNameChanged: function(newName, oldName) {
         AuthEngine.appPackageName = newName;
       },
@@ -677,7 +770,11 @@ You can bind to `isAuthorized` property to monitor authorization state.
 
       _scopesChanged: function(newVal, oldVal) {
         AuthEngine.requestScopes(newVal);
-        this._updateScopeStatus();
+        this._updateScopeStatus(undefined);
+      },
+
+      _openidPromptChanged: function(newVal, oldVal) {
+        AuthEngine.openidPrompt = newVal;
       },
 
       _updateScopeStatus: function(user) {

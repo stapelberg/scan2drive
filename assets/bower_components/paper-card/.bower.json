@@ -1,6 +1,6 @@
 {
   "name": "paper-card",
-  "version": "1.1.1",
+  "version": "1.1.6",
   "description": "Material design piece of paper with unique related data",
   "authors": [
     "The Polymer Authors"
@@ -11,7 +11,6 @@
     "card"
   ],
   "main": "paper-card.html",
-  "private": true,
   "repository": {
     "type": "git",
     "url": "git://github.com/PolymerElements/paper-card.git"
@@ -38,14 +37,13 @@
     "web-component-tester": "^4.0.0",
     "webcomponentsjs": "webcomponents/webcomponentsjs#^0.7.0"
   },
-  "_release": "1.1.1",
+  "_release": "1.1.6",
   "_resolution": {
     "type": "version",
-    "tag": "v1.1.1",
-    "commit": "8ddd91424414ad32147c4c0c6812aff348da6114"
+    "tag": "v1.1.6",
+    "commit": "ec8b9c1277f6e5c8b16e6ba987fb4dac99982f30"
   },
   "_source": "git://github.com/PolymerElements/paper-card.git",
   "_target": "^1.1.1",
-  "_originalSource": "PolymerElements/paper-card",
-  "_direct": true
+  "_originalSource": "PolymerElements/paper-card"
 }

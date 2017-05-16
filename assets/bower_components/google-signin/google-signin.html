@@ -1,3 +1,18 @@
+<!--
+Copyright 2014 Google Inc
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    https://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
 <link rel="import" href="../polymer/polymer.html">
 <link rel="import" href="google-signin-aware.html">
 <link rel="import" href="../iron-icon/iron-icon.html">
@@ -5,12 +20,14 @@
 <link rel="import" href="../google-apis/google-js-api.html">
 <link rel="import" href="../paper-ripple/paper-ripple.html">
 <link rel="import" href="../paper-material/paper-material.html">
-<link rel="import" href="../iron-flex-layout/classes/iron-flex-layout.html">
+<link rel="import" href="../iron-flex-layout/iron-flex-layout-classes.html">
 <link rel="import" href="google-icons.html">
 
 <dom-module id="google-signin">
   <link rel="import" type="css" href="google-signin.css">
   <template>
+    <style is="custom-style" include="iron-positioning"></style>
+
     <google-signin-aware id="aware"
       app-package-name="{{appPackageName}}"
       client-id="{{clientId}}"
@@ -20,6 +37,7 @@
       offline="{{offline}}"
       offline-always-prompt="{{offlineAlwaysPrompt}}"
       scopes="{{scopes}}"
+      openid-prompt="{{openidPrompt}}"
       signed-in="{{signedIn}}"
       is-authorized="{{isAuthorized}}"
       need-additional-auth="{{needAdditionalAuth}}"
@@ -32,7 +50,7 @@
 
       <paper-ripple id="ripple" class="fit"></paper-ripple>
       <!-- this div is needed to position the ripple behind text content -->
-      <div relative layout horizontal center-center>
+      <div>
         <template is="dom-if" if="{{_computeButtonIsSignIn(signedIn, needAdditionalAuth)}}">
           <div class="button-content signIn" tabindex="0"
               on-click="signIn" on-keydown="_signInKeyPress">
@@ -186,40 +204,46 @@ any apps you're building. See the Google Developers Console
 
       is: 'google-signin',
 
-    /**
-     * Fired when user is signed in.
-     * You can use auth2 api to retrieve current user: `gapi.auth2.getAuthInstance().currentUser.get();`
-     * @event google-signin-success
-     */
+      /**
+       * Fired when user is signed in.
+       * You can use auth2 api to retrieve current user: `gapi.auth2.getAuthInstance()['currentUser'].get();`
+       * @event google-signin-success
+       */
 
-    /**
-     * Fired when the user is signed-out.
-     * @event google-signed-out
-     */
+      /**
+       * Fired when the user is signed-out.
+       * @event google-signed-out
+       */
 
-    /**
-     * Fired if user requires additional authorization
-     * @event google-signin-necessary
-     */
+      /**
+       * Fired if user requires additional authorization
+       * @event google-signin-necessary
+       */
 
-    /**
-     * Fired when signed in, and scope has been authorized
-     * @param {Object} result Authorization result.
-     * @event google-signin-aware-success
-     */
+      /**
+       * Fired when signed in, and scope has been authorized
+       * @param {Object} result Authorization result.
+       * @event google-signin-aware-success
+       */
 
-    /**
-     * Fired when an offline authorization is successful.
-     * @event google-signin-offline-success
-     * @param {Object} detail
-     * @param {string} detail.code The one-time authorization code from Google.
-     *     Your application can exchange this for an `access_token` and `refresh_token`
-     */
+      /**
+       * Fired when there is an error during the signin flow.
+       * @param {Object} detail The error object returned from the OAuth 2 flow.
+       * @event google-signin-aware-error
+       */
 
-    /**
-     * Fired when this scope is not authorized
-     * @event google-signin-aware-signed-out
-     */
+      /**
+       * Fired when an offline authorization is successful.
+       * @param {{code: string}} detail -
+       *     code: The one-time authorization code from Google.
+       *         Your application can exchange this for an `access_token` and `refresh_token`
+       * @event google-signin-offline-success
+       */
+
+      /**
+       * This block is needed so the previous @param is not assigned to the next property.
+       */
+
       properties: {
         /**
          * App package name for android over-the-air installs.
@@ -271,7 +295,7 @@ any apps you're building. See the Google Developers Console
          *
          * Available options: short, standard, tall.
          *
-         * @type {HeightValue}
+         * @type {string}
          */
         height: {
           type: String,
@@ -370,12 +394,31 @@ any apps you're building. See the Google Developers Console
         },
 
         /**
+         * Space-delimited, case-sensitive list of strings that
+         * specifies whether the the user is prompted for reauthentication
+         * and/or consent. The defined values are:
+         *   none: do not display authentication or consent pages.
+         *     This value is mutually exclusive with the rest.
+         *   login: always prompt the user for reauthentication.
+         *   consent: always show consent screen.
+         *   select_account: always show account selection page.
+         *     This enables a user who has multiple accounts to select amongst
+         *     the multiple accounts that they might have current sessions for.
+         * For more information, see "prompt" parameter description in
+         * https://openid.net/specs/openid-connect-basic-1_0.html#RequestParameters
+         */
+        openidPrompt: {
+          type: String,
+          value: ''
+        },
+
+        /**
          * The theme to use for the button.
          *
          * Available options: light, dark.
          *
          * @attribute theme
-         * @type {ThemeValue}
+         * @type {string}
          * @default 'dark'
          */
         theme: {
@@ -388,7 +431,7 @@ any apps you're building. See the Google Developers Console
          *
          * Available options: iconOnly, standard, wide.
          *
-         * @type {WidthValue}
+         * @type {string}
          */
         width: {
           type: String,
@@ -414,6 +457,7 @@ any apps you're building. See the Google Developers Console
          */
         needAdditionalAuth: {
           type: Boolean,
+          notify: true,
           value: false
         },
 
