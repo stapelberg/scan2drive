@@ -59,9 +59,8 @@ var (
 		"",
 		"Path to the directory containing static assets (JavaScript, images, etc.), e.g. assets/")
 
-	// TODO: patch up the file with redirect_uris = postmessage
 	clientSecretPath = flag.String("client_secret_path",
-		"/perm/client_secret_197950901230-jee3asvone1tnh7k2qsshm369723vkun.apps.googleusercontent.com.json",
+		"/perm/client_secret.json",
 		"Path to a client secret JSON file as described in https://developers.google.com/drive/v3/web/quickstart/go#step_1_turn_on_the_api_name")
 
 	stateDir = flag.String("state_dir",
@@ -748,9 +747,29 @@ func main() {
 	flag.Parse()
 
 	gokrazy.WaitForClock()
+	if *injectAssets != "" {
+		if err := bundled.Inject(*injectAssets); err != nil {
+			log.Fatal(err)
+		}
+	}
+
+	mux := newSetupMux()
+
+	go func() {
+		log.Fatal(http.ListenAndServe(*httpListenAddr, gorilla_context.ClearHandler(mux)))
+	}()
+
 	b, err := ioutil.ReadFile(*clientSecretPath)
 	if err != nil {
-		log.Fatalf("Unable to read client secret file: %v", err)
+		if os.IsNotExist(err) {
+			mux.setSetup(true)
+			registerSetupHandlers(mux)
+			mux.setupLeft() // blocks until setup is done
+			b, err = ioutil.ReadFile(*clientSecretPath)
+		}
+		if err != nil {
+			log.Fatalf("Unable to read client secret file: %v", err)
+		}
 	}
 
 	oauthConfig, err = oauthConfigFromJSON(b)
@@ -811,25 +830,17 @@ func main() {
 
 	log.Printf("Listening on %q (gRPC) and http://%s", *rpcListenAddr, maybePrefixLocalhost(*httpListenAddr))
 
-	if *injectAssets != "" {
-		if err := bundled.Inject(*injectAssets); err != nil {
-			log.Fatal(err)
-		}
-	}
-
-	http.HandleFunc("/assets/", assetsDirHandler)
+	mux.defaultMux.HandleFunc("/assets/", assetsDirHandler)
 	// TODO: verify method (POST) in each handler
-	http.HandleFunc("/scans_dir/", scansDirHandler)
-	http.HandleFunc("/oauth", oauthHandler)
-	http.HandleFunc("/signout", signoutHandler)
-	http.HandleFunc("/storedrivefolder", storeDriveFolder)
-	http.HandleFunc("/startscan", startScanHandler)
-	http.HandleFunc("/scanstatus", scanStatusHandler)
-	http.HandleFunc("/renamescan", renameScanHandler)
-	http.HandleFunc("/", indexHandler)
+	mux.defaultMux.HandleFunc("/scans_dir/", scansDirHandler)
+	mux.defaultMux.HandleFunc("/oauth", oauthHandler)
+	mux.defaultMux.HandleFunc("/signout", signoutHandler)
+	mux.defaultMux.HandleFunc("/storedrivefolder", storeDriveFolder)
+	mux.defaultMux.HandleFunc("/startscan", startScanHandler)
+	mux.defaultMux.HandleFunc("/scanstatus", scanStatusHandler)
+	mux.defaultMux.HandleFunc("/renamescan", renameScanHandler)
+	mux.defaultMux.HandleFunc("/", indexHandler)
 
-	go http.ListenAndServe(*httpListenAddr, gorilla_context.ClearHandler(http.DefaultServeMux))
-	s := grpc.NewServer(grpc.MaxMsgSize(10 * 1024 * 1024))
 	go LocalScanner()
 	proto.RegisterScanServer(s, &server{})
 	s.Serve(ln)
