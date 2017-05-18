@@ -39,7 +39,7 @@ func Example() {
 	}
 	info := &pdf.DocumentInfo{
 		Common:       pdf.Common{ObjectName: "info"},
-		CreationDate: time.Unix(1493650928, 0),
+		CreationDate: time.Unix(1493650928, 0).UTC(),
 		Producer:     "https://github.com/stapelberg/scan2drive",
 	}
 	var buf bytes.Buffer
@@ -120,7 +120,7 @@ func Example() {
 	// endobj
 	// 6 0 obj
 	// <<
-	//   /CreationDate (D:20170501170208+02'00')
+	//   /CreationDate (D:20170501150208+00'00')
 	//   /Producer (https://github.com/stapelberg/scan2drive)
 	// >>
 	// endobj
