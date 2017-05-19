@@ -239,7 +239,13 @@ function signInCallback(authResult) {
                 // Reload the page.
                 window.location.href = window.location.href;
             },
-            // TODO: error handling (could use not existing sessions directory to trigger a 500).
+            error: function(jqXHR, textStatus, errorThrown) {
+		if (jqXHR.status == 500) {
+                    $('#error p').text('OAuth error: ' + jqXHR.responseText + '. Try revoking access on https://security.google.com/settings/u/0/security/permissions, then retry');
+		} else {
+                    $('#error p').text('Unknown OAuth error: ' + errorThrown);
+                }
+            },
             processData: false,
             data: authResult['code'],
         });
