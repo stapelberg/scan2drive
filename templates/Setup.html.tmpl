@@ -145,6 +145,9 @@ You’re seeing this page because the OAuth client secret could not be read from
   </form>
 
 </li>
+{{ else }}
+<li>Dismiss the popup and click the download JSON button next to the newly created credential.</li>
+<li>Avail the downloaded JSON credential file as <code>{{ .ClientSecretPath }}</code>.</li>
 {{ end }}
 </ol>
 </div>
