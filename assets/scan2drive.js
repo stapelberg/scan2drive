@@ -51,7 +51,7 @@ function start() {
                 url: '/signout',
                 success: function(result) {
                     // Reload the page.
-                    window.location.href = window.location.href;
+                    window.location.href = window.location.origin;
                 },
                 // TODO: error handling (deleting file failed, e.g. because of readonly file system)
             });
@@ -237,7 +237,7 @@ function signInCallback(authResult) {
             contentType: 'application/octet-stream; charset=utf-8',
             success: function(result) {
                 // Reload the page.
-                window.location.href = window.location.href;
+                window.location.href = window.location.origin;
             },
             error: function(jqXHR, textStatus, errorThrown) {
 		if (jqXHR.status == 500) {
