@@ -6,33 +6,14 @@
 <meta name="viewport" content="width=device-width, minimum-scale=1.0, initial-scale=1">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:400,300,300italic,400italic,500,500italic,700,700italic">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto+Mono:400,700">
-<link rel="import" href="/assets/elements.vulcanized.html" />
-<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.8.2/jquery.min.js"></script>
-<script type="text/javascript" src="/assets/scan2drive.js"></script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/0.98.2/css/materialize.min.css">
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.1/jquery.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/0.98.2/js/materialize.min.js"></script>
 <style is="custom-style" include="iron-flex iron-flex-alignment">
 body {
 	margin: 0;
 	padding: 0;
-}
-#content {
-	padding-left: 1em;
-	padding-right: 1em;
-}
-p,div {
-    @apply(--paper-font-body1);
-}
-h1 {
-    @apply(--paper-font-display1);
-}
-.container {
-	@apply(--layout-horizontal);
-}
-.container > div {
-	margin-left: 1em;
-	margin-right: 1em;
-}
-.flexchild {
-	@apply(--layout-flex);
 }
 #user-avatar {
 	border-radius: 50%;
@@ -40,88 +21,39 @@ h1 {
 	width: 32px;
 	margin-left: 0.5em;
 }
-#scanfab {
-	position: fixed;
-	bottom: 16px;
-	right: 16px;
-}
-
-paper-card.scan {
-	@apply(--layout-horizontal);
-	margin-bottom: 1em;
-}
-paper-card.scan .card-actions {
-	position: absolute;
-	bottom: 0;
-	width: 90%;
-}
-.scan-content {
-	@apply(--layout-flex);
-	float: left;
-	position: relative;
-}
-.scan-status {
-	vertical-align: middle;
-}
-.scan-title {
-	@apply(--paper-font-headline);
-	margin-bottom: .5em;
-}
-.scan-thumb {
-	/* These dimensions are a 600 dpi scan divided by 7. */
-	width: 170px;
-	height: 240px;
-}
-.signin {
-	border: 1px solid #d9d9d9;
-}
-.user-avatar-wrapper {
-	margin-left: 1em;
-	@apply(--layout-horizontal);
-}
-.user-avatar-wrapper a, .user-avatar-wrapper a:hover, .user-avatar-wrapper a:visited {
-	color: white;
-}
-.user-avatar-wrapper div {
-	font-size: 13px;
-	line-height: 16px;
-}
-.paper-toolbar-0 .toolbar-tools.paper-toolbar .title {
-	margin-left: 0;
-}
-paper-toolbar {
-	margin-bottom: 1em;
-}
-.scan-progress {
-	@apply(--layout-horizontal);
-}
-.scan-progress paper-spinner-lite {
-	margin-right: 1em;
-}
-#scan-dialog {
-	@apply(--layout-horizontal);
-}
 </style>
 </head>
 <body>
-
-<paper-fab style="display: none; z-index: 1" id="scanfab" icon="hardware:scanner" title="Scan" onclick="scan()"></paper-fab>
-
-<paper-toolbar>
-	<span class="title">scan2drive</span>
-	<!-- TODO: settings drawer: default user account for scan button, drive folder to upload to -->
-	<paper-icon-button id="settings-button" style="display: none" icon="settings" onclick="document.getElementById('settings-dialog').open()"></paper-icon-button>
-	<div class="user-avatar-wrapper">
+  
+  <nav class="indigo lighten-1" role="navigation">
+    <div class="nav-wrapper container">
+      <a id="logo-container" href="#" class="brand-logo">scan2drive</a>
+      
+      <ul class="right hide-on-med-and-down valign-wrapper">
+	<li><a href="#settings-dialog"><i class="material-icons">settings</i></a></li>
+	<li class="valign-wrapper" style="line-height: 16px; margin-left: 1em">
 	  <div>
-	  <span id="user-name" data-sub="{{ .sub }}">Not logged in</span><br>
-	  <a href="#" id="signout" style="display: none">Sign out</a>
+	    <span id="user-name" data-sub="{{ .sub }}">Not logged in</span><br>
+	    <a href="#" id="signout" style="display: none">Sign out</a>
 	  </div>
-	  <img id="user-avatar" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNgYAAAAAMAASsJTYQAAAAASUVORK5CYII=">
-	</div>
-</paper-toolbar>
+	  <img id="user-avatar" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNgYAAAAAMAASsJTYQAAAAASUVORK5CYII=" class="circle responsive-img valign">
+	</li>
+      </ul>
 
-<div id="content">
-<h1>Initial Setup</h1>
+      <ul id="nav-mobile" class="side-nav">
+        <li><a href="#"><i class="material-icons">settings</i></a></li>
+      </ul>
+      <a href="#" data-activates="nav-mobile" class="button-collapse"><i class="material-icons">menu</i></a>
+    </div>
+  </nav>
+
+  <div class="container">
+    <div class="section">
+
+      <div class="row">
+        <div class="col s12 m12">
+
+	  <h1>Initial Setup</h1>
 <p>
 You’re seeing this page because the OAuth client secret could not be read from <code>{{ .ClientSecretPath }}</code> (configured via the <code>-client_secret_path</code> flag).
 </p>
@@ -150,8 +82,11 @@ You’re seeing this page because the OAuth client secret could not be read from
 <li>Avail the downloaded JSON credential file as <code>{{ .ClientSecretPath }}</code>.</li>
 {{ end }}
 </ol>
-</div>
-</div>
-<script src="https://apis.google.com/js/client:platform.js?onload=start" async defer></script>
-</body>
+
+        </div>
+      </div>
+    </div>
+  </div>
+
+  </body>
 </html>

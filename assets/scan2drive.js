@@ -3,14 +3,18 @@
 // https://developers.google.com/identity/sign-in/web/reference
 // https://developers.google.com/picker/docs/reference
 
-var user;
+function httpErrorToToast(jqXHR, prefix) {
+    var summary = 'HTTP ' + jqXHR.status + ': ' + jqXHR.responseText;
+    Materialize.toast(prefix + ': ' + summary, 5000, 'red');
+    console.log('error: prefix', prefix, ', summary', summary);
+}
 
+// start is called once the Google APIs were loaded
 function start() {
     console.log('start');
 
     gapi.load('auth2', function() {
-        // TODO: avoid a global variable here.
-        auth2 = gapi.auth2.init({
+        var auth2 = gapi.auth2.init({
             client_id: clientID,
             // The “profile” and “email” scope are always requested.
             scope: 'https://www.googleapis.com/auth/drive',
@@ -22,14 +26,17 @@ function start() {
             // browser, but not on the server side (e.g. because sessions were
             // deleted).
             if (auth2.isSignedIn.get() && user.getId() === sub) {
+		console.log('logged in');
                 $('#user-avatar').attr('src', user.getBasicProfile().getImageUrl());
                 $('#user-name').text(user.getBasicProfile().getName());
-                $('paper-fab').show();
+                $('.fixed-action-btn').show();
                 $('#signin').hide();
                 $('#signout').show();
                 $('#settings-button').show();
                 // TODO: open settings button in case drive folder is not configured
-            }
+            } else {
+		console.log('auth2 loaded, but user not logged in');
+	    }
         }, function(err) {
 	    var errorp = $('#error p');
 	    errorp.text('Error ' + err.error + ': ' + err.details);
@@ -37,9 +44,20 @@ function start() {
         });
     });
 
+    gapi.signin2.render('my-signin2', {
+        'scope': 'profile email',
+        'width': 240,
+        'height': 50,
+        'longtitle': true,
+        'theme': 'dark',
+        'onsuccess': function(){ console.log('success'); },
+        'onfailure': function() { console.log('failure'); }
+    });
+
     gapi.load('picker', function() {});
 
     $('#signinButton').click(function() {
+	var auth2 = gapi.auth2.getAuthInstance();
         auth2.grantOfflineAccess({'redirect_uri': 'postmessage'}).then(signInCallback);
     });
 
@@ -61,6 +79,7 @@ function start() {
 
     // TODO: #signin keypress
     $('#signin').click(function(ev) {
+	var auth2 = gapi.auth2.getAuthInstance();
         auth2.grantOfflineAccess({'redirect_uri': 'postmessage'}).then(signInCallback);
         ev.preventDefault();
     });
@@ -71,6 +90,7 @@ function start() {
 }
 
 function pollScan(name) {
+    var user = gapi.auth2.getAuthInstance().currentUser.get();
     $.ajax({
         type: 'POST',
         url: '/scanstatus',
@@ -83,8 +103,9 @@ function pollScan(name) {
                 return;
             }
             if (data.Done) {
-                $('#scan-dialog paper-spinner-lite').attr('active', null);
-                $('paper-fab').attr('icon', 'hardware:scanner').attr('disabled', null);
+                $('#scan-dialog paper-spinner-lite').attr('active', null); // TODO
+                $('.fixed-action-btn i').text('scanner');
+                $('.fixed-action-btn a').removeClass('disabled');
                 $('#scan-dialog').off('iron-overlay-canceled');
                 var sub = user.getBasicProfile().getId();
                 $('#scan-dialog .scan-thumb').css('background', 'url("scans_dir/' + sub + '/' + name + '/thumb.png")').css('background-size', 'cover');
@@ -118,7 +139,7 @@ function renameScan(name, newSuffix) {
             $('#scan-form paper-input iron-icon').show();
         },
         error: function(jqXHR, textStatus, errorThrown) {
-            console.log(textStatus);
+            httpErrorToToast(jqXHR, 'renaming scan failed');
         },
         processData: false,
         data: JSON.stringify({
@@ -130,13 +151,9 @@ function renameScan(name, newSuffix) {
 
 function scan() {
     // Only one scan can be in progress at a time.
-    $('paper-fab').attr('icon', 'hourglass-empty').attr('disabled', true);
-
-    document.getElementById('scan-dialog').open();
-    $('#scan-dialog').on('iron-overlay-canceled', function(ev) {
-        // TODO: move status to toolbar instead of blocking close
-        ev.preventDefault();
-    });
+    $('.fixed-action-btn i').text('hourglass_empty');
+    $('.fixed-action-btn a').addClass('disabled');
+    $('#scan-dialog').modal('open');
 
     $.ajax({
         type: 'POST',
@@ -150,27 +167,10 @@ function scan() {
             pollScan(data.Name);
         },
         error: function(jqXHR, textStatus, errorThrown) {
-            var exitStatus = jqXHR.getResponseHeader('X-Exit-Status');
-            if (exitStatus === undefined) {
-                console.log('TODO: error handler for non-scanimage internal server error');
-                return;
-            }
-            // From sane-backends-1.0.25/include/sane/sane.h
-            // SANE_STATUS_GOOD = 0,   /* everything A-OK */
-            // SANE_STATUS_UNSUPPORTED,    /* operation is not supported */
-            // SANE_STATUS_CANCELLED,  /* operation was cancelled */
-            // SANE_STATUS_DEVICE_BUSY,    /* device is busy; try again later */
-            // SANE_STATUS_INVAL,      /* data is invalid (includes no dev at open) */
-            // SANE_STATUS_EOF,        /* no more data available (end-of-file) */
-            // SANE_STATUS_JAMMED,     /* document feeder jammed */
-            // SANE_STATUS_NO_DOCS,    /* document feeder out of documents */
-            // SANE_STATUS_COVER_OPEN, /* scanner cover is open */
-            // SANE_STATUS_IO_ERROR,   /* error during device I/O */
-            // SANE_STATUS_NO_MEM,     /* out of memory */
-            // SANE_STATUS_ACCESS_DENIED   /* access to resource has been denied */
-
-            // TODO: butter bar with human-readable error code
-            console.log('error ', exitStatus);
+            $('#scan-dialog').modal('close');
+            $('.fixed-action-btn i').text('scanner');
+            $('.fixed-action-btn a').removeClass('disabled');
+            httpErrorToToast(jqXHR, 'scanning failed');
         },
     });
 }
@@ -192,12 +192,10 @@ function pickerCallback(data) {
         url: '/storedrivefolder',
         contentType: 'application/json',
         success: function(data, textStatus, jqXHR) {
-            console.log('result', data, 'textStatus', textStatus, 'jqXHR', jqXHR);
-            if (jqXHR.status !== 200) {
-                // TODO: show error message
-                return;
-            }
-            $('#drive-folder').html($('<img>').attr('src', picked.iconUrl).css('margin-right', '0.25em')).append($('<a />').attr('href', picked.url).text(picked.name));
+            $('#drivefolder').val(picked.name);
+        },
+        error: function(jqXHR, textStatus, errorThrown) {
+            httpErrorToToast(jqXHR, 'storing drive folder failed');
         },
         data: JSON.stringify({
             'Id': picked.id,
@@ -209,6 +207,8 @@ function pickerCallback(data) {
 }
 
 function createPicker() {
+    var user = gapi.auth2.getAuthInstance().currentUser.get();
+
     if (!user) {
         // The picker requires an OAuth token.
         return;
