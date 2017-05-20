@@ -44,17 +44,17 @@ function start() {
     });
 
     $('#signout').click(function(ev) {
-        // TODO: it seems like disconnect() won’t actually revoke scopes
-        // sometimes, perhaps when being called to soon after authorizing?
-        auth2.disconnect();
-        $.ajax({
-            type: 'POST',
-            url: '/signout',
-            success: function(result) {
-                // Reload the page.
-                window.location.href = window.location.href;
-            },
-            // TODO: error handling (deleting file failed, e.g. because of readonly file system)
+        var auth2 = gapi.auth2.getAuthInstance();
+        auth2.signOut().then(function() {
+            $.ajax({
+                type: 'POST',
+                url: '/signout',
+                success: function(result) {
+                    // Reload the page.
+                    window.location.href = window.location.href;
+                },
+                // TODO: error handling (deleting file failed, e.g. because of readonly file system)
+            });
         });
         ev.preventDefault();
     });

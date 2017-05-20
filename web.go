@@ -21,6 +21,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -172,6 +173,10 @@ func signoutHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusForbidden)
 		return
 	}
+	var token string
+	if t := users[sub].Token; t != nil {
+		token = t.RefreshToken
+	}
 	dir := filepath.Join(*stateDir, "users", sub)
 	if err := os.Remove(filepath.Join(dir, "token.json")); err != nil {
 		log.Printf("Error deleting token: %v", err)
@@ -180,6 +185,29 @@ func signoutHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := readUsers(); err != nil {
 		log.Printf("Error reading users: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if token == "" {
+		log.Printf("skipping revoke: no refresh token present to begin with")
+		return
+	}
+	// Revoke the token so that subsequent logins will yield a refresh
+	// token without clients having to explicitly revoke permission:
+	// https://developers.google.com/identity/protocols/OAuth2WebServer#tokenrevoke
+	resp, err := http.PostForm("https://accounts.google.com/o/oauth2/revoke", url.Values{
+		"token": []string{token},
+	})
+	if err != nil {
+		log.Printf("Error revoking token: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if got, want := resp.StatusCode, http.StatusOK; got != want {
+		b, _ := ioutil.ReadAll(resp.Body)
+		err := fmt.Errorf("unexpected HTTP status code: got %d, want %d (body: %q)", got, want, string(b))
+		log.Printf("Error revoking token: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
