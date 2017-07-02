@@ -20,12 +20,12 @@ import (
 	"context"
 	"fmt"
 	"image"
-	"image/jpeg"
 	"image/png"
 	"io"
 	"log"
 	"os"
 	"path/filepath"
+	"sort"
 	"sync"
 	"time"
 
@@ -35,10 +35,12 @@ import (
 	"github.com/stapelberg/scan2drive/internal/fss500"
 	"github.com/stapelberg/scan2drive/internal/fss500/usb"
 	"github.com/stapelberg/scan2drive/internal/g3"
+	"github.com/stapelberg/scan2drive/internal/neonjpeg"
 	"github.com/stapelberg/scan2drive/proto"
 )
 
 func scan(tr trace.Trace, dev io.ReadWriter) error {
+	start := time.Now()
 	client := proto.NewScanClient(scanConn)
 	resp, err := client.DefaultUser(context.Background(), &proto.DefaultUserRequest{})
 	if err != nil {
@@ -112,18 +114,14 @@ func scan(tr trace.Trace, dev io.ReadWriter) error {
 
 	var cnt int
 
-	var (
-		compressed   []*bytes.Buffer
-		compressedMu sync.Mutex
-	)
-
-	type numberedImage struct {
-		cnt       int
-		binarized *image.Gray
+	type numberedPage struct {
+		cnt        int
+		compressed *bytes.Buffer
+		binarized  *image.Gray
 	}
 	var (
-		binarized   []numberedImage
-		binarizedMu sync.Mutex
+		pages   []numberedPage
+		pagesMu sync.Mutex
 	)
 
 	for paper := 0; ; paper++ { // pieces of paper (each with a front/back side)
@@ -146,7 +144,58 @@ func scan(tr trace.Trace, dev io.ReadWriter) error {
 			front = 0
 			back  = 1
 		)
-		var pixels [2][]byte
+		type pageState struct {
+			cnt  int
+			out  *os.File
+			enc  *neonjpeg.Encoder
+			rest []byte // buffers pixels until 16 full rows
+			ch   chan []byte
+			done chan struct{}
+
+			bin     *image.Gray // binarized and rotated full page
+			offset  int
+			whitePx int // number of white pixels in binarized page
+		}
+		var state [2]*pageState
+
+		for side := range []int{front, back} {
+			cnt++
+			fn := filepath.Join(scanDir, fmt.Sprintf("page%d.jpg", cnt))
+			o, err := os.Create(fn)
+			if err != nil {
+				return err
+			}
+			defer o.Close()
+			enc, err := neonjpeg.Encode(o, image.Point{4960, 7016}, &neonjpeg.Options{
+				Quality: 75, // like scanimage(1)
+			})
+			if err != nil {
+				return err
+			}
+			ps := &pageState{
+				cnt:  cnt,
+				out:  o,
+				enc:  enc,
+				rest: make([]byte, 0, 16*3*4960),
+				ch:   make(chan []byte),
+				done: make(chan struct{}),
+				bin:  image.NewGray(image.Rect(0, 0, 4960, 7016)),
+			}
+			go func() {
+				for chunk := range ps.ch {
+					height := len(chunk) / 3 / 4960
+					if padding := height % 16; padding != 0 {
+						chunk = append(chunk, make([]byte, padding*3*4960)...)
+					}
+					ps.enc.EncodePixels(chunk, height)
+					white := binarizeRotated(chunk, height, ps.bin, ps.offset)
+					ps.offset += height
+					ps.whitePx += white
+				}
+				ps.done <- struct{}{}
+			}()
+			state[side] = ps
+		}
 
 	ExhaustData:
 		for {
@@ -163,7 +212,20 @@ func scan(tr trace.Trace, dev io.ReadWriter) error {
 				} else if err != nil {
 					return err
 				}
-				pixels[side] = append(pixels[side], resp.Extra...)
+
+				buf := append(state[side].rest, resp.Extra...)
+
+				// Grab a chunk of 16 full rows (as required by neonjpeg), store
+				// the remaining bytes for the next iteration.
+				height := len(buf) / 3 / 4960
+				chunk := buf[:((height/16)*16)*3*4960]
+				state[side].rest = buf[len(chunk):]
+
+				// Copy chunk to safely use it in a separate goroutine.
+				tmp := make([]byte, len(chunk))
+				copy(tmp, chunk)
+				state[side].ch <- tmp
+
 				if err == fss500.ErrEndOfPaper && side == back {
 					log.Printf("done!")
 					break ExhaustData
@@ -171,76 +233,47 @@ func scan(tr trace.Trace, dev io.ReadWriter) error {
 			} // for side
 		} // for
 
-		// TODO(later): process interleaved with reading from USB
+		for side := range []int{front, back} {
+			ps := state[side]
+			ps.ch <- ps.rest
+			close(ps.ch)
+			<-ps.done
+			if err := ps.enc.Flush(); err != nil {
+				return err
+			}
+			if err := ps.out.Close(); err != nil {
+				return err
+			}
+			createCompleteMarker(resp.User, relName, "scan")
+		}
+
+		tr.LazyPrintf("scan done in %v", time.Since(start))
+
 		var eg errgroup.Group
 		for side := range []int{front, back} {
 			side := side // copy
-			cnt++
-			cnt := cnt // copy
 			eg.Go(func() error {
-				// Convert the pixel data to *image.RGBA, for which image/jpeg has a specialized version.
-				// This brings down JPEG encoding times from 30s to 15s.
-				start := time.Now()
-				m := fss500.ToRGBA(pixels[side])
-				tr.LazyPrintf("converted to *image.RGBA in %v", time.Since(start))
-
-				fn := filepath.Join(scanDir, fmt.Sprintf("page%d.jpg", cnt))
-				start = time.Now()
-				o, err := os.Create(fn)
-				if err != nil {
-					return err
-				}
-				defer o.Close()
-				bufw := bufio.NewWriter(o)
-				if err := jpeg.Encode(bufw, m, &jpeg.Options{
-					Quality: 75, // like scanimage(1)
-				}); err != nil {
-					return err
-				}
-				if err := bufw.Flush(); err != nil {
-					return err
-				}
-				if err := o.Close(); err != nil {
-					return err
-				}
-				createCompleteMarker(resp.User, relName, "scan")
-				tr.LazyPrintf("saved to JPG in %q in %v", fn, time.Since(start))
-				return nil
-			})
-
-			eg.Go(func() error {
-				// binarize (takes 3s on a Raspberry Pi 3)
-				start := time.Now()
-				bin, whitePct := binarizeFSS500(pixels[side])
+				// Skip blank pages
+				whitePct := float64(state[side].whitePx) / float64(4960*7016)
 				blank := whitePct > 0.99
-				tr.LazyPrintf("white percentage of page %d is %f, blank = %v (binarized in %v)", cnt, whitePct, blank, time.Since(start))
+				tr.LazyPrintf("white percentage of page %d is %f, blank = %v", state[side].cnt, whitePct, blank)
 				if blank {
 					return nil
 				}
 
-				start = time.Now()
-				// rotate (takes 7.9s on a Raspberry Pi 3)
-				bin = rotate180(bin)
-				tr.LazyPrintf("rotated in %v", time.Since(start))
-
 				// compress (takes 3.4s on a Raspberry Pi 3)
 				var buf bytes.Buffer
-				start = time.Now()
-				if err := g3.NewEncoder(&buf).Encode(bin); err != nil {
+				start := time.Now()
+				if err := g3.NewEncoder(&buf).Encode(state[side].bin); err != nil {
 					return err
 				}
 				tr.LazyPrintf("compressed in %v", time.Since(start))
-				// Prepend (!) the page — the ScanSnap iX500’s
-				// document feeder scans the last page first, so we
-				// need to reverse the order.
-				compressedMu.Lock()
-				defer compressedMu.Unlock()
-				compressed = append([]*bytes.Buffer{&buf}, compressed...)
-				binarizedMu.Lock()
-				defer binarizedMu.Unlock()
-				binarized = append(binarized, numberedImage{
-					cnt:       cnt,
-					binarized: bin,
+				pagesMu.Lock()
+				defer pagesMu.Unlock()
+				pages = append(pages, numberedPage{
+					cnt:        state[side].cnt,
+					binarized:  state[side].bin,
+					compressed: &buf,
 				})
 				tr.LazyPrintf("compressed into %d bytes", buf.Len())
 				return nil
@@ -249,6 +282,15 @@ func scan(tr trace.Trace, dev io.ReadWriter) error {
 		if err := eg.Wait(); err != nil {
 			return err
 		}
+	}
+
+	// Prepend (!) the page — the ScanSnap iX500’s
+	// document feeder scans the last page first, so we
+	// need to reverse the order.
+	sort.Slice(pages, func(i, j int) bool { return pages[i].cnt < pages[j].cnt })
+	compressed := make([]*bytes.Buffer, 0, len(pages))
+	for i := len(pages) - 1; i >= 0; i-- {
+		compressed = append(compressed, pages[i].compressed)
 	}
 
 	// write PDF
@@ -274,7 +316,7 @@ func scan(tr trace.Trace, dev io.ReadWriter) error {
 		max    int
 		maxImg *image.Gray
 	)
-	for _, ni := range binarized {
+	for _, ni := range pages {
 		if ni.cnt > max {
 			max = ni.cnt
 			maxImg = ni.binarized

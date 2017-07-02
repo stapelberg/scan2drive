@@ -82,3 +82,36 @@ func binarizeFSS500(pixels []byte) (*image.Gray, float64) {
 	}
 	return out, float64(white) / float64(4960*7016)
 }
+
+// binarizeRotated is a copy of binarize, processing chunks of a 4960x7016 pixel
+// array in RGB format (as returned by the Fujitsu ScanSnap iX500). Assumes the
+// input is rotated by 180 degrees.
+func binarizeRotated(chunk []byte, height int, bin *image.Gray, offset int) int {
+	var white int
+	const channels = 3
+	var r, g, b uint32
+	var i, o int
+	var a uint32
+	for y := 0; y < height; y++ {
+		for x := 0; x < 4960; x++ {
+			i = channels*4960*y + channels*x
+
+			r = uint32(chunk[i+0])
+			r |= r << 8
+			g = uint32(chunk[i+1])
+			g |= g << 8
+			b = uint32(chunk[i+2])
+			b |= b << 8
+
+			a = (19595*r + 38470*g + 7471*b + 1<<15) >> 24
+			o = (7016-1-(offset+y))*4960 + (4960 - 1 - x)
+			if uint8(a) > 127 {
+				bin.Pix[o] = 0xff // white
+				white++
+			} else {
+				bin.Pix[o] = 0x00 // black
+			}
+		}
+	}
+	return white
+}
