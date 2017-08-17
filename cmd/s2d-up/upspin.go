@@ -6,9 +6,9 @@ import (
 	"net/http"
 	"time"
 
+	"exp.upspin.io/filesystem"
 	"upspin.io/cloud/https"
 	"upspin.io/config"
-	"upspin.io/exp/filesystem"
 	"upspin.io/flags"
 	"upspin.io/rpc/dirserver"
 	"upspin.io/rpc/storeserver"
