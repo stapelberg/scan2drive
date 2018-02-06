@@ -87,6 +87,42 @@ function start() {
     $('#select-drive-folder').click(function() {
         createPicker();
     });
+
+    // Resolve user ids into names and thumbnails for the people dialog
+    $('div.user').each(function(idx, el) {
+	var sub = $(el).data('sub');
+	$.ajax({
+	    url: 'https://picasaweb.google.com/data/entry/api/user/' + sub + '?alt=json',
+	    success: function(result) {
+		var nick = result.entry.gphoto$nickname.$t;
+		var thumb = result.entry.gphoto$thumbnail.$t;
+		$('div.user[data-sub="' + sub + '"] img').attr('src', thumb);
+		$('div.user[data-sub="' + sub + '"] span.user-nick').text(nick);
+	    },
+	});
+    });
+
+    $('div.user').click(function() {
+	var sub = $(this).data('sub');
+	// TODO: show progress spinner
+	$.ajax({
+            type: 'POST',
+            url: '/storedefaultuser',
+            contentType: 'application/json',
+            success: function(data, textStatus, jqXHR) {
+		$('div.user').removeClass('default-user');
+		$('div.user[data-sub="' + sub + '"]').addClass('default-user');
+		$('#people-dialog').modal('close');
+            },
+            error: function(jqXHR, textStatus, errorThrown) {
+		httpErrorToToast(jqXHR, 'storing default user failed');
+            },
+            processData: false,
+            data: JSON.stringify({
+		DefaultSub: sub,
+            }),
+	});
+    });
 }
 
 function pollScan(name) {

@@ -93,9 +93,10 @@ type driveFolder struct {
 }
 
 type userState struct {
-	Token  *oauth2.Token
-	Folder driveFolder
-	Drive  *drive.Service
+	Token   *oauth2.Token
+	Folder  driveFolder
+	Drive   *drive.Service
+	Default bool
 }
 
 func (u userState) loggedIn() bool {
@@ -187,6 +188,9 @@ func readUsers() error {
 			}
 			state.Drive = srv
 		}
+		if _, err := os.Stat(filepath.Join(usersPath, sub, "is_default")); err == nil {
+			state.Default = true
+		}
 		newUsers[sub] = state
 	}
 	usersMu.Lock()
@@ -243,6 +247,18 @@ func writeToken(sub string, token *oauth2.Token) error {
 
 func writeDriveFolder(sub string, folder driveFolder) error {
 	return writeJsonForUser(sub, "drive_folder.json", &folder)
+}
+
+func writeDefault(sub string, isDefault bool) error {
+	fn := filepath.Join(*stateDir, "users", sub, "is_default")
+	if isDefault {
+		return ioutil.WriteFile(fn, []byte("true"), 0644)
+	}
+	err := os.Remove(fn)
+	if os.IsNotExist(err) {
+		return nil // desired state
+	}
+	return err
 }
 
 type server struct {
@@ -624,13 +640,19 @@ func (s *server) DefaultUser(ctx context.Context, in *proto.DefaultUserRequest) 
 			return &proto.DefaultUserReply{User: sub}, nil
 		}
 	}
-	// TODO: implement a setting for which user is the default user.
+	var defaultSub string
 	subs := make([]string, 0, len(users))
-	for sub, _ := range users {
+	for sub, state := range users {
+		if state.Default {
+			defaultSub = sub
+		}
 		subs = append(subs, sub)
 	}
-	sort.Strings(subs)
-	return &proto.DefaultUserReply{User: subs[0]}, nil
+	if defaultSub == "" {
+		sort.Strings(subs)
+		defaultSub = subs[0]
+	}
+	return &proto.DefaultUserReply{User: defaultSub}, nil
 }
 
 func (s *server) ProcessScan(ctx context.Context, in *proto.ProcessScanRequest) (*proto.ProcessScanReply, error) {
@@ -837,6 +859,7 @@ func main() {
 	http.HandleFunc("/oauth", oauthHandler)
 	http.HandleFunc("/signout", signoutHandler)
 	http.HandleFunc("/storedrivefolder", storeDriveFolder)
+	http.HandleFunc("/storedefaultuser", storeDefaultUser)
 	http.HandleFunc("/startscan", startScanHandler)
 	http.HandleFunc("/scanstatus", scanStatusHandler)
 	http.HandleFunc("/renamescan", renameScanHandler)

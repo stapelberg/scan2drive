@@ -75,12 +75,27 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 		keys = append(keys, key)
 	}
 	sort.Sort(sort.Reverse(sort.StringSlice(keys)))
+
+	var defaultSub string
+	subs := make([]string, 0, len(users))
+	usersMu.RLock()
+	for sub, state := range users {
+		if state.Default {
+			defaultSub = sub
+		}
+		subs = append(subs, sub)
+	}
+	usersMu.RUnlock()
+	sort.Strings(subs)
+
 	err = templates.IndexTpl.ExecuteTemplate(w, "Index", map[string]interface{}{
 		// TODO: show drive connection status in settings drop-down
-		"sub":   sub,
-		"user":  state,
-		"scans": scans,
-		"keys":  keys,
+		"sub":        sub,
+		"user":       state,
+		"scans":      scans,
+		"keys":       keys,
+		"subs":       subs,
+		"defaultsub": defaultSub,
 	})
 	scansMu.RUnlock()
 	if err != nil {
@@ -164,6 +179,7 @@ func requireAuth(w http.ResponseWriter, r *http.Request) (string, error) {
 	if v, ok := session.Values["sub"].(string); ok {
 		return v, nil
 	}
+	http.Error(w, "Not logged in yet", http.StatusForbidden)
 	return "", fmt.Errorf(`"sub" not found in session`)
 }
 
@@ -253,6 +269,33 @@ func storeDriveFolder(w http.ResponseWriter, r *http.Request) {
 		log.Printf("Error reading users: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
+	}
+}
+
+func storeDefaultUser(w http.ResponseWriter, r *http.Request) {
+	_, err := requireAuth(w, r)
+	if err != nil {
+		return
+	}
+
+	var storeDefaultReq struct {
+		DefaultSub string
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&storeDefaultReq); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	usersMu.Lock()
+	defer usersMu.Unlock()
+	for sub, state := range users {
+		state.Default = sub == storeDefaultReq.DefaultSub
+		if err := writeDefault(sub, state.Default); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		users[sub] = state
 	}
 }
 

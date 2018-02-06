@@ -38,11 +38,28 @@ body {
 	margin: 0;
 	padding: 0;
 }
-#user-avatar {
+#user-avatar, .user-avatar {
 	border-radius: 50%;
 	height: 32px;
 	width: 32px;
 	margin-left: 0.5em;
+}
+.user-avatar {
+	float: left;
+	margin-right: 0.5em;
+}
+.user-nick {
+	line-height: 32px;
+}
+.user {
+	margin-bottom: 1em;
+	cursor: pointer;
+}
+.user:hover {
+	background-color: #eee;
+}
+.default-user {
+	font-weight: bold;
 }
 .scan-thumb {
 	/* These dimensions are a 600 dpi scan divided by 7. */
@@ -70,6 +87,7 @@ body {
       
       <ul class="right hide-on-med-and-down valign-wrapper">
 	<li><a href="#settings-dialog"><i class="material-icons">settings</i></a></li>
+	<li><a href="#people-dialog"><i class="material-icons">people</i></a></li>
 	<li class="valign-wrapper" style="line-height: 16px; margin-left: 1em">
 	  <div>
 	    <span id="user-name" data-sub="{{ .sub }}">Not logged in</span><br>
@@ -114,6 +132,28 @@ body {
 		   >
 	  </div>
 	</div>
+      </form>
+    </div>
+    <div class="modal-footer">
+      <a href="#!" class="modal-action modal-close waves-effect waves-green btn-flat">Close</a>
+    </div>
+  </div>
+
+  <div id="people-dialog" class="modal" style="min-width: 50%">
+    <div class="modal-content">
+      <h4>Default scan recipient</h4>
+
+      <p>
+	When pressing the physical scan button, scans should be received by:
+      </p>
+
+      <form action="#">
+	{{ range $sub := .subs }}
+	<div class="user {{ if eq $.defaultsub $sub }}default-user{{ end }}" data-sub="{{ $sub }}">
+	  <img class="user-avatar" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNgYAAAAAMAASsJTYQAAAAASUVORK5CYII=" class="circle responsive-img valign">
+	  <span class="user-nick"></span>
+	</div>
+	{{ end }}
       </form>
     </div>
     <div class="modal-footer">
@@ -211,6 +251,7 @@ body {
   <script type="text/javascript">
     $(document).ready(function() {
       $('#settings-dialog').modal();
+      $('#people-dialog').modal();
       $('#scan-dialog').modal({
         dismissible: false // cannot be dismissed by clicking outside
       });
