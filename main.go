@@ -272,6 +272,7 @@ type dirState struct {
 	UploadedPDF       bool
 	Renamed           bool
 	NewName           string
+	PDFDriveId        string
 }
 
 func examineScansDir() error {
@@ -328,6 +329,12 @@ func examineScansDir() error {
 						return err
 					}
 					state.NewName = string(content)
+				} else if subEntry.Name() == "pdf.drive_id" {
+					content, err := ioutil.ReadFile(filepath.Join(*scansDir, sub, dir, "pdf.drive_id"))
+					if err != nil {
+						return err
+					}
+					state.PDFDriveId = string(content)
 				}
 			}
 			scansNew[dir] = state
@@ -494,6 +501,11 @@ func uploadPDF(ctx context.Context, sub, dir string) error {
 		return err
 	}
 	tr.LazyPrintf("Uploaded file to Google Drive as id %q", r.Id)
+
+	idPath := filepath.Join(*scansDir, sub, dir, "pdf.drive_id")
+	if err := ioutil.WriteFile(idPath, []byte(r.Id), 0644); err != nil {
+		log.Panicf("Could not write %q: %v", idPath, err)
+	}
 
 	return nil
 }
