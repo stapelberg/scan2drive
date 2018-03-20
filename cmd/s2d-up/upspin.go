@@ -3,8 +3,11 @@ package main
 import (
 	"log"
 	"math/rand"
+	"net"
 	"net/http"
 	"time"
+
+	"github.com/gokrazy/gokrazy"
 
 	"exp.upspin.io/filesystem"
 	"upspin.io/cloud/https"
@@ -48,5 +51,19 @@ func main() {
 
 	http.Handle("/api/Store/", storeserver.New(cfg, fs.StoreServer(), addr))
 	http.Handle("/api/Dir/", dirserver.New(cfg, fs.DirServer(), addr))
-	https.ListenAndServeFromFlags(nil)
+
+	options := https.OptionsFromFlags()
+
+	// Only listen on public addresses (gokrazy listens on private addresses):
+	publicAddrs, err := gokrazy.PublicInterfaceAddrs()
+	if err != nil {
+		log.Fatal(err)
+	}
+	if len(publicAddrs) == 0 {
+		log.Fatalf("no public IP addresses found, cannot obtain LetsEncrypt certificate")
+	}
+	// TODO: handle listening on multiple IP addresses
+	options.HTTPAddr = net.JoinHostPort(publicAddrs[0], "http")
+
+	https.ListenAndServe(nil, options)
 }
