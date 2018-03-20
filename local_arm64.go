@@ -32,6 +32,7 @@ import (
 	"golang.org/x/net/trace"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/stapelberg/scan2drive/internal/atomic/write"
 	"github.com/stapelberg/scan2drive/internal/fss500"
 	"github.com/stapelberg/scan2drive/internal/fss500/usb"
 	"github.com/stapelberg/scan2drive/internal/g3"
@@ -146,7 +147,7 @@ func scan(tr trace.Trace, dev io.ReadWriter) error {
 		)
 		type pageState struct {
 			cnt  int
-			out  *os.File
+			out  *write.PendingFile
 			enc  *neonjpeg.Encoder
 			rest []byte // buffers pixels until 16 full rows
 			ch   chan []byte
@@ -161,11 +162,11 @@ func scan(tr trace.Trace, dev io.ReadWriter) error {
 		for side := range []int{front, back} {
 			cnt++
 			fn := filepath.Join(scanDir, fmt.Sprintf("page%d.jpg", cnt))
-			o, err := os.Create(fn)
+			o, err := write.TempFile(fn)
 			if err != nil {
 				return err
 			}
-			defer o.Close()
+			defer o.Cleanup()
 			enc, err := neonjpeg.Encode(o, image.Point{4960, 7016}, &neonjpeg.Options{
 				Quality: 75, // like scanimage(1)
 			})
@@ -241,7 +242,7 @@ func scan(tr trace.Trace, dev io.ReadWriter) error {
 			if err := ps.enc.Flush(); err != nil {
 				return err
 			}
-			if err := ps.out.Close(); err != nil {
+			if err := ps.out.CloseAtomicallyReplace(); err != nil {
 				return err
 			}
 			createCompleteMarker(resp.User, relName, "scan")
