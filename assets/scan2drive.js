@@ -14,34 +14,48 @@ function start() {
     console.log('start');
 
     gapi.load('auth2', function() {
-        var auth2 = gapi.auth2.init({
-            client_id: clientID,
-            // The “profile” and “email” scope are always requested.
-            scope: 'https://www.googleapis.com/auth/drive',
-        });
-        auth2.then(function() {
-            user = auth2.currentUser.get();
-            var sub = $('#user-name').attr('data-sub');
-            // If sub does not match the user id, we are logged in in the
-            // browser, but not on the server side (e.g. because sessions were
-            // deleted).
-            if (auth2.isSignedIn.get() && user.getId() === sub) {
-		console.log('logged in');
-                $('#user-avatar').attr('src', user.getBasicProfile().getImageUrl());
-                $('#user-name').text(user.getBasicProfile().getName());
-                $('.fixed-action-btn').show();
-                $('#signin').hide();
-                $('#signout').show();
-                $('#settings-button').show();
-                // TODO: open settings button in case drive folder is not configured
-            } else {
-		console.log('auth2 loaded, but user not logged in');
-	    }
-        }, function(err) {
-	    var errorp = $('#error p');
-	    errorp.text('Error ' + err.error + ': ' + err.details);
-	    console.log('OAuth2 error', err);
-        });
+	gapi.client.load('plus', 'v1').then(function() {
+            var auth2 = gapi.auth2.init({
+		client_id: clientID,
+		// The “profile” and “email” scope are always requested.
+		scope: 'https://www.googleapis.com/auth/drive',
+            });
+            auth2.then(function() {
+		user = auth2.currentUser.get();
+		var sub = $('#user-name').attr('data-sub');
+		// If sub does not match the user id, we are logged in in the
+		// browser, but not on the server side (e.g. because sessions were
+		// deleted).
+		if (auth2.isSignedIn.get() && user.getId() === sub) {
+		    console.log('logged in');
+                    $('#user-avatar').attr('src', user.getBasicProfile().getImageUrl());
+                    $('#user-name').text(user.getBasicProfile().getName());
+                    $('.fixed-action-btn').show();
+                    $('#signin').hide();
+                    $('#signout').show();
+                    $('#settings-button').show();
+                    // TODO: open settings button in case drive folder is not configured
+
+		    // Resolve user ids into names and thumbnails for the people dialog
+		    $('div.user').each(function(idx, el) {
+			var sub = $(el).data('sub');
+			var req = gapi.client.plus.people.get({'userId': sub});
+			req.execute(function(result) {
+			    var nick = result.displayName;
+			    var thumb = result.image.url;
+			    $('div.user[data-sub="' + sub + '"] img').attr('src', thumb);
+			    $('div.user[data-sub="' + sub + '"] span.user-nick').text(nick);
+			});
+		    });
+		} else {
+		    console.log('auth2 loaded, but user not logged in');
+		}
+            }, function(err) {
+		var errorp = $('#error p');
+		errorp.text('Error ' + err.error + ': ' + err.details);
+		console.log('OAuth2 error', err);
+            });
+	});
     });
 
     gapi.signin2.render('my-signin2', {
@@ -86,20 +100,6 @@ function start() {
 
     $('#select-drive-folder').click(function() {
         createPicker();
-    });
-
-    // Resolve user ids into names and thumbnails for the people dialog
-    $('div.user').each(function(idx, el) {
-	var sub = $(el).data('sub');
-	$.ajax({
-	    url: 'https://picasaweb.google.com/data/entry/api/user/' + sub + '?alt=json',
-	    success: function(result) {
-		var nick = result.entry.gphoto$nickname.$t;
-		var thumb = result.entry.gphoto$thumbnail.$t;
-		$('div.user[data-sub="' + sub + '"] img').attr('src', thumb);
-		$('div.user[data-sub="' + sub + '"] span.user-nick').text(nick);
-	    },
-	});
     });
 
     $('div.user').click(function() {
