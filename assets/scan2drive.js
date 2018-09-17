@@ -49,6 +49,15 @@ function start() {
 		    });
 		} else {
 		    console.log('auth2 loaded, but user not logged in');
+		    gapi.signin2.render('my-signin2', {
+			'scope': 'profile email',
+			'width': 240,
+			'height': 50,
+			'longtitle': true,
+			'theme': 'dark',
+			'onsuccess': function(){ console.log('success'); },
+			'onfailure': function() { console.log('failure'); }
+		    });
 		}
             }, function(err) {
 		var errorp = $('#error p');
@@ -56,16 +65,6 @@ function start() {
 		console.log('OAuth2 error', err);
             });
 	});
-    });
-
-    gapi.signin2.render('my-signin2', {
-        'scope': 'profile email',
-        'width': 240,
-        'height': 50,
-        'longtitle': true,
-        'theme': 'dark',
-        'onsuccess': function(){ console.log('success'); },
-        'onfailure': function() { console.log('failure'); }
     });
 
     gapi.load('picker', function() {});
