@@ -157,10 +157,10 @@ body {
       </p>
 
       <form action="#">
-	{{ range $sub := .subs }}
-	<div class="user {{ if eq $.defaultsub $sub }}default-user{{ end }}" data-sub="{{ $sub }}">
-	  <img class="user-avatar" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNgYAAAAAMAASsJTYQAAAAASUVORK5CYII=" class="circle responsive-img valign">
-	  <span class="user-nick"></span>
+	{{ range $u := .users }}
+	<div class="user {{ if eq $.defaultsub $u.Sub }}default-user{{ end }}" data-sub="{{ $u.Sub }}">
+	  <img class="user-avatar" src="{{ $u.PictureURL }}" class="circle responsive-img valign">
+	  <span class="user-nick">{{ $u.FullName }}</span>
 	</div>
 	{{ end }}
       </form>

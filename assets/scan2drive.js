@@ -36,17 +36,6 @@ function start() {
                     $('#settings-button').show();
                     // TODO: open settings button in case drive folder is not configured
 
-		    // Resolve user ids into names and thumbnails for the people dialog
-		    $('div.user').each(function(idx, el) {
-			var sub = $(el).data('sub');
-			var req = gapi.client.plus.people.get({'userId': sub});
-			req.execute(function(result) {
-			    var nick = result.displayName;
-			    var thumb = result.image.url;
-			    $('div.user[data-sub="' + sub + '"] img').attr('src', thumb);
-			    $('div.user[data-sub="' + sub + '"] span.user-nick').text(nick);
-			});
-		    });
 		} else {
 		    console.log('auth2 loaded, but user not logged in');
 		    gapi.signin2.render('my-signin2', {

@@ -76,7 +76,13 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	sort.Sort(sort.Reverse(sort.StringSlice(keys)))
 
+	type user struct {
+		Sub        string
+		FullName   string
+		PictureURL string
+	}
 	var defaultSub string
+	tusers := make([]user, 0, len(users))
 	subs := make([]string, 0, len(users))
 	usersMu.RLock()
 	for sub, state := range users {
@@ -84,6 +90,11 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 			defaultSub = sub
 		}
 		subs = append(subs, sub)
+		tusers = append(tusers, user{
+			Sub:        sub,
+			FullName:   state.Name,
+			PictureURL: state.Picture,
+		})
 	}
 	usersMu.RUnlock()
 	sort.Strings(subs)
@@ -95,6 +106,7 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 		"scans":      scans,
 		"keys":       keys,
 		"subs":       subs,
+		"users":      tusers,
 		"defaultsub": defaultSub,
 	})
 	scansMu.RUnlock()

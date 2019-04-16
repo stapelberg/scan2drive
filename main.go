@@ -41,6 +41,8 @@ import (
 	"golang.org/x/oauth2"
 	"google.golang.org/api/drive/v3"
 	"google.golang.org/api/googleapi"
+	oauth2api "google.golang.org/api/oauth2/v2"
+	"google.golang.org/api/option"
 	"google.golang.org/grpc"
 )
 
@@ -97,6 +99,9 @@ type userState struct {
 	Folder  driveFolder
 	Drive   *drive.Service
 	Default bool
+
+	Name    string // full name, e.g. “Michael Stapelberg”
+	Picture string // profile picture URL
 }
 
 func (u userState) loggedIn() bool {
@@ -181,12 +186,24 @@ func readUsers() error {
 			// NOTE: As per https://github.com/golang/oauth2/issues/84,
 			// Google’s RefreshTokens stay valid until they are revoked, so
 			// there is no need to ever update the token on disk.
-			srv, err := drive.New(oauthConfig.Client(context.Background(), state.Token))
+			ctx := context.Background()
+			httpClient := oauthConfig.Client(ctx, state.Token)
+			dsrv, err := drive.New(httpClient)
 			if err != nil {
-				log.Printf("Could not create drive client for %q: %v", sub, err)
-				continue
+				return fmt.Errorf("creating drive client for %q: %v", sub, err)
 			}
-			state.Drive = srv
+			state.Drive = dsrv
+
+			osrv, err := oauth2api.NewService(ctx, option.WithHTTPClient(httpClient))
+			if err != nil {
+				return fmt.Errorf("creating oauth2 client for %q: %v", sub, err)
+			}
+			o, err := osrv.Userinfo.Get().Do()
+			if err != nil {
+				return err
+			}
+			state.Name = o.Name
+			state.Picture = o.Picture
 		}
 		if _, err := os.Stat(filepath.Join(usersPath, sub, "is_default")); err == nil {
 			state.Default = true
