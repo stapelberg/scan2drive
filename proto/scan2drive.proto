@@ -8,6 +8,7 @@ message DefaultUserRequest {
 
 message DefaultUserReply {
   string user = 1;
+  string full_name = 2;
 }
 
 message ProcessScanRequest {

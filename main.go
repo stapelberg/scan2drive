@@ -665,8 +665,11 @@ func (s *server) DefaultUser(ctx context.Context, in *proto.DefaultUserRequest) 
 	if len(users) == 0 {
 		return nil, fmt.Errorf("No users registered")
 	} else if len(users) == 1 {
-		for sub, _ := range users {
-			return &proto.DefaultUserReply{User: sub}, nil
+		for sub, state := range users {
+			return &proto.DefaultUserReply{
+				User:     sub,
+				FullName: state.Name,
+			}, nil
 		}
 	}
 	var defaultSub string
@@ -681,7 +684,11 @@ func (s *server) DefaultUser(ctx context.Context, in *proto.DefaultUserRequest) 
 		sort.Strings(subs)
 		defaultSub = subs[0]
 	}
-	return &proto.DefaultUserReply{User: defaultSub}, nil
+	state := users[defaultSub]
+	return &proto.DefaultUserReply{
+		User:     defaultSub,
+		FullName: state.Name,
+	}, nil
 }
 
 func (s *server) ProcessScan(ctx context.Context, in *proto.ProcessScanRequest) (*proto.ProcessScanReply, error) {

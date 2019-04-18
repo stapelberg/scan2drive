@@ -26,12 +26,14 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
 	"golang.org/x/net/trace"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/augustoroman/serial_lcd"
 	"github.com/stapelberg/scan2drive/internal/atomic/write"
 	"github.com/stapelberg/scan2drive/internal/fss500"
 	"github.com/stapelberg/scan2drive/internal/fss500/usb"
@@ -40,7 +42,18 @@ import (
 	"github.com/stapelberg/scan2drive/proto"
 )
 
-func scan(tr trace.Trace, dev io.ReadWriter) error {
+func scan(tr trace.Trace, dev io.ReadWriter, display *serial_lcd.LCD) (err error) {
+	defer func() {
+		tr.LazyPrintf("error: %v", err)
+		if err != nil {
+			tr.SetError()
+		}
+	}()
+
+	display.Clear()
+	display.MoveTo(1, 1)
+	fmt.Fprintf(display, "scanning...")
+
 	start := time.Now()
 	client := proto.NewScanClient(scanConn)
 	resp, err := client.DefaultUser(context.Background(), &proto.DefaultUserRequest{})
@@ -294,6 +307,10 @@ func scan(tr trace.Trace, dev io.ReadWriter) error {
 		compressed = append(compressed, pages[i].compressed)
 	}
 
+	display.Clear()
+	display.MoveTo(1, 1)
+	fmt.Fprintf(display, "writing %d pages", len(pages))
+
 	// write PDF
 	fn := filepath.Join(scanDir, "scan.pdf")
 	o, err := os.Create(fn)
@@ -344,6 +361,10 @@ func scan(tr trace.Trace, dev io.ReadWriter) error {
 
 	createCompleteMarker(resp.User, relName, "convert")
 
+	display.Clear()
+	display.MoveTo(1, 1)
+	fmt.Fprintf(display, "uploading %d pages", len(pages))
+
 	tr.LazyPrintf("processing scan")
 	if _, err := client.ProcessScan(context.Background(), &proto.ProcessScanRequest{User: resp.User, Dir: relName}); err != nil {
 		return err
@@ -353,6 +374,12 @@ func scan(tr trace.Trace, dev io.ReadWriter) error {
 	return nil
 }
 
+type discardLCD struct{}
+
+func (d *discardLCD) Read(p []byte) (n int, err error)  { return 0, nil }
+func (d *discardLCD) Write(p []byte) (n int, err error) { return len(p), nil }
+func (d *discardLCD) Close() error                      { return nil }
+
 // LocalScanner waits for a locally connected Fujitsu ScanSnap iX500
 // to appear, then starts scans whenever the scan button is triggered.
 // Running in a goroutine.
@@ -360,14 +387,63 @@ func LocalScanner() {
 	tr := trace.New("LocalScanner", "fss500")
 	defer tr.Finish()
 
+	d, err := serial_lcd.Open("/dev/ttyACM0", 115200)
+	if err != nil {
+		log.Printf("could not open lcd: %v", err)
+		// TODO: remove once this PR got merged:
+		// https://github.com/augustoroman/serial_lcd/pull/1
+		d = serial_lcd.LCD{&discardLCD{}}
+	}
+	d.SetAutoscroll(false)
+	setBacklightColor := func(red, green, blue byte) {
+		d.SetBrightness(255)
+		if os.Getenv("GOKRAZY_FIRST_START") != "1" {
+			d.SetBG(255, 255, 0) // indicate a crash
+			return
+		}
+		d.SetBG(red, green, blue)
+	}
+	client := proto.NewScanClient(scanConn)
+	defaultUser := func() string {
+		resp, err := client.DefaultUser(context.Background(), &proto.DefaultUserRequest{})
+		if err != nil {
+			return err.Error()
+		}
+		trunc := resp.GetFullName()
+		if idx := strings.Index(trunc, " "); idx > -1 {
+			trunc = trunc[:idx]
+		}
+		return trunc
+	}
+	showNotReady := func() {
+		d.SetBrightness(0) // turn off backlight
+		d.Clear()
+		d.MoveTo(1, 1)
+		fmt.Fprintf(d, "scan2"+strings.ToLower(defaultUser()))
+		d.MoveTo(1, 2)
+		fmt.Fprintf(d, "no scanner found")
+	}
+	showNotReady()
+
 	for {
 		dev, err := usb.FindDevice()
 		if err != nil {
+			showNotReady()
 			tr.LazyPrintf("device not found: %v", err)
 			time.Sleep(1 * time.Second)
 			continue
 		}
 		tr.LazyPrintf("device opened, waiting for scan button press")
+
+		showReady := func() {
+			setBacklightColor(0xFF, 0xFF, 0xFF)
+			d.Clear()
+			d.MoveTo(1, 1)
+			fmt.Fprintf(d, "scan2"+strings.ToLower(defaultUser()))
+			d.MoveTo(1, 2)
+			fmt.Fprintf(d, "scanner ready")
+		}
+		showReady()
 
 		var lastChange time.Time
 		for {
@@ -379,8 +455,16 @@ func LocalScanner() {
 			if hwStatus.ScanSw && time.Since(lastChange) > 5*time.Second {
 				lastChange = time.Now()
 				tr.LazyPrintf("scan button pressed, scanning")
-				if err := scan(tr, dev); err != nil {
+				// recover from error backlight color if necessary
+				setBacklightColor(0xFF, 0xFF, 0xFF)
+				if err := scan(tr, dev, &d); err != nil {
 					tr.LazyPrintf("scanning failed: %v", err)
+					setBacklightColor(0xFF, 0x00, 0x00)
+					d.Clear()
+					d.MoveTo(1, 1)
+					fmt.Fprintf(d, "%v", err)
+				} else {
+					showReady()
 				}
 			}
 			if !hwStatus.Hopper {
