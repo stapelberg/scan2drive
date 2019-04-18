@@ -443,45 +443,34 @@ func uploadOriginals(ctx context.Context, sub, dir string) error {
 	}
 }
 
-func convert(ctx context.Context, sub, dir string) error {
+func convert(ctx context.Context, sub, dir string) (err error) {
 	tr, _ := trace.FromContext(ctx)
+	defer func() { tr.LazyPrintf("result: %v", err) }()
 	files, err := ioutil.ReadDir(filepath.Join(*scansDir, sub, dir))
 	if err != nil {
 		return err
 	}
-	req := &proto.ConvertRequest{}
+	var paths []string
 	for _, file := range files {
 		if filepath.Ext(file.Name()) != ".jpg" {
 			continue
 		}
-		path := filepath.Join(*scansDir, sub, dir, file.Name())
-		tr.LazyPrintf("Reading %q (%d bytes)", path, file.Size())
-		contents, err := ioutil.ReadFile(path)
-		if err != nil {
-			return err
+		if file.Size() == 0 {
+			continue
 		}
-		// Prepend (!) the page — the ScanSnap iX500’s document feeder scans
-		// the last page first, so we need to reverse the order.
-		req.ScannedPage = append([][]byte{contents}, req.ScannedPage...)
+		path := filepath.Join(*scansDir, sub, dir, file.Name())
+		paths = append([]string{path}, paths...)
+		tr.LazyPrintf("Located %q (%d bytes)", path, file.Size())
 	}
 
 	var pdf, thumb []byte
-	cl := proto.NewScanClient(scanConn)
-	// TODO: re-implement local RPC short-circuit
-	// if local {
-	// 	// short-circuit to the conversion logic to avoid RPC overhead
-	// 	pdf, thumb, err = convertLogic(tr, len(req.ScannedPage), func(i int) []byte { return req.ScannedPage[i] })
-	// 	if err != nil {
-	// 		return err
-	// 	}
-	// } else {
-	resp, err := cl.Convert(ctx, req)
+	// short-circuit to the conversion logic to avoid RPC overhead
+	pdf, thumb, err = convertLogic(tr, len(paths), func(i int) ([]byte, error) {
+		return ioutil.ReadFile(paths[i])
+	})
 	if err != nil {
 		return err
 	}
-	pdf = resp.PDF
-	thumb = resp.Thumb
-	//	}
 
 	pdfPath := filepath.Join(*scansDir, sub, dir, "scan.pdf")
 	thumbPath := filepath.Join(*scansDir, sub, dir, "thumb.png")
@@ -710,7 +699,11 @@ func (s *server) ProcessScan(ctx context.Context, in *proto.ProcessScanRequest) 
 	state, _ := scans[dir]
 	scansMu.RUnlock()
 
-	tr, _ := trace.FromContext(ctx)
+	tr, ok := trace.FromContext(ctx)
+	if !ok {
+		tr = trace.New("LocalScanner", "ProcessScan")
+		ctx = trace.NewContext(ctx, tr)
+	}
 	tr.LazyPrintf("state = %#v", state)
 
 	// Upload the originals in the background while converting (which takes the
@@ -881,7 +874,7 @@ func main() {
 	pr := preferRemote{
 		local: maybePrefixLocalhost(*rpcListenAddr),
 	}
-	scanConn, err = grpc.Dial(*scanService, grpc.WithInsecure(), grpc.WithBalancer(&pr))
+	scanConn, err = grpc.Dial(*scanService, grpc.WithInsecure(), grpc.WithBalancer(&pr), grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(512*1024*1024)))
 	if err != nil {
 		log.Fatal(err)
 	}

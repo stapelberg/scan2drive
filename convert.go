@@ -25,13 +25,16 @@ import (
 	"golang.org/x/net/trace"
 )
 
-func convertLogic(tr trace.Trace, length int, cb func(int) []byte) (pdf []byte, thumb []byte, err error) {
+func convertLogic(tr trace.Trace, length int, cb func(int) ([]byte, error)) (pdf []byte, thumb []byte, err error) {
 	compressed := make([]*bytes.Buffer, length)
 	var first *image.Gray
 	for idx := 0; idx < length; idx++ {
 		var binarized *image.Gray
 		{
-			page := cb(idx)
+			page, err := cb(idx)
+			if err != nil {
+				return nil, nil, err
+			}
 			img, _, err := image.Decode(bytes.NewReader(page))
 			if err != nil {
 				return nil, nil, err
@@ -81,8 +84,8 @@ func convertLogic(tr trace.Trace, length int, cb func(int) []byte) (pdf []byte, 
 func (s *server) Convert(ctx context.Context, in *proto.ConvertRequest) (*proto.ConvertReply, error) {
 	tr, _ := trace.FromContext(ctx)
 
-	pdf, thumb, err := convertLogic(tr, len(in.ScannedPage), func(i int) []byte {
-		return in.ScannedPage[i]
+	pdf, thumb, err := convertLogic(tr, len(in.ScannedPage), func(i int) ([]byte, error) {
+		return in.ScannedPage[i], nil
 	})
 	if err != nil {
 		return nil, err
