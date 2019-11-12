@@ -443,10 +443,10 @@ func LocalScanner() {
 			d.MoveTo(1, 2)
 			fmt.Fprintf(d, "scanner ready")
 		}
-		showReady()
 
 		var lastChange time.Time
 		for {
+			showReady()
 			hwStatus, err := fss500.GetHardwareStatus(dev)
 			if err != nil {
 				tr.LazyPrintf("hardware status request failed: %v", err)
