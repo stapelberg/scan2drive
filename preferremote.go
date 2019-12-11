@@ -53,12 +53,10 @@ func (p *preferRemote) Get(ctx context.Context, opts grpc.BalancerGetOptions) (a
 	if p.remoteUp {
 		a = p.remote
 	}
-	log.Printf("preferRemote.Get(%#v) = %s", opts, a)
 	return grpc.Address{Addr: a}, nil, nil
 }
 
 func (p *preferRemote) Notify() <-chan []grpc.Address {
-	log.Printf("preferRemote.Notify()")
 	ch := make(chan []grpc.Address, 1)
 	addrs := []grpc.Address{{Addr: p.local}}
 	if p.remote != "" {
