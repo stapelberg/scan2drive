@@ -14,46 +14,44 @@ function start() {
     console.log('start');
 
     gapi.load('auth2', function() {
-	gapi.client.load('plus', 'v1').then(function() {
-            var auth2 = gapi.auth2.init({
-		client_id: clientID,
-		// The “profile” and “email” scope are always requested.
-		scope: 'https://www.googleapis.com/auth/drive',
-            });
-            auth2.then(function() {
-		user = auth2.currentUser.get();
-		var sub = $('#user-name').attr('data-sub');
-		// If sub does not match the user id, we are logged in in the
-		// browser, but not on the server side (e.g. because sessions were
-		// deleted).
-		if (auth2.isSignedIn.get() && user.getId() === sub) {
-		    console.log('logged in');
-                    $('#user-avatar').attr('src', user.getBasicProfile().getImageUrl());
-                    $('#user-name').text(user.getBasicProfile().getName());
-                    $('.fixed-action-btn').show();
-                    $('#signin').hide();
-                    $('#signout').show();
-                    $('#settings-button').show();
-                    // TODO: open settings button in case drive folder is not configured
+        var auth2 = gapi.auth2.init({
+	    client_id: clientID,
+	    // The “profile” and “email” scope are always requested.
+	    scope: 'https://www.googleapis.com/auth/drive',
+        });
+        auth2.then(function() {
+	    user = auth2.currentUser.get();
+	    var sub = $('#user-name').attr('data-sub');
+	    // If sub does not match the user id, we are logged in in the
+	    // browser, but not on the server side (e.g. because sessions were
+	    // deleted).
+	    if (auth2.isSignedIn.get() && user.getId() === sub) {
+		console.log('logged in');
+                $('#user-avatar').attr('src', user.getBasicProfile().getImageUrl());
+                $('#user-name').text(user.getBasicProfile().getName());
+                $('.fixed-action-btn').show();
+                $('#signin').hide();
+                $('#signout').show();
+                $('#settings-button').show();
+                // TODO: open settings button in case drive folder is not configured
 
-		} else {
-		    console.log('auth2 loaded, but user not logged in');
-		    gapi.signin2.render('my-signin2', {
-			'scope': 'profile email',
-			'width': 240,
-			'height': 50,
-			'longtitle': true,
-			'theme': 'dark',
-			'onsuccess': function(){ console.log('success'); },
-			'onfailure': function() { console.log('failure'); }
-		    });
-		}
-            }, function(err) {
-		var errorp = $('#error p');
-		errorp.text('Error ' + err.error + ': ' + err.details);
-		console.log('OAuth2 error', err);
-            });
-	});
+	    } else {
+		console.log('auth2 loaded, but user not logged in');
+		gapi.signin2.render('my-signin2', {
+		    'scope': 'profile email',
+		    'width': 240,
+		    'height': 50,
+		    'longtitle': true,
+		    'theme': 'dark',
+		    'onsuccess': function(){ console.log('success'); },
+		    'onfailure': function() { console.log('failure'); }
+		});
+	    }
+        }, function(err) {
+	    var errorp = $('#error p');
+	    errorp.text('Error ' + err.error + ': ' + err.details);
+	    console.log('OAuth2 error', err);
+        });
     });
 
     gapi.load('picker', function() {});
