@@ -7,7 +7,7 @@ require (
 	github.com/augustoroman/serial_lcd v0.0.0-20141102051859-34f3eb309a2e
 	github.com/gokrazy/gokrazy v0.0.0-20190321081644-520b8ca41de7
 	github.com/gokrazy/internal v0.0.0-20180714213357-23a986872b2e // indirect
-	github.com/golang/protobuf v1.3.1
+	github.com/golang/protobuf v1.3.2
 	github.com/gorilla/context v1.1.1
 	github.com/gorilla/securecookie v1.1.1
 	github.com/gorilla/sessions v1.1.3
@@ -19,6 +19,8 @@ require (
 	golang.org/x/sync v0.0.0-20190227155943-e225da77a7e6
 	golang.org/x/sys v0.0.0-20190215142949-d0b11bdaac8a
 	google.golang.org/api v0.3.2
-	google.golang.org/grpc v1.20.0
+	google.golang.org/grpc v1.23.0
 	upspin.io v0.0.0-20190403071319-e10ca8ff5f80
 )
+
+replace google.golang.org/grpc => google.golang.org/grpc v1.26.0
