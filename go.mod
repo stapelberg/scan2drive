@@ -22,5 +22,3 @@ require (
 	google.golang.org/grpc v1.23.0
 	upspin.io v0.0.0-20190403071319-e10ca8ff5f80
 )
-
-replace google.golang.org/grpc => google.golang.org/grpc v1.26.0
