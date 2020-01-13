@@ -4,7 +4,10 @@ sudo: false
 
 language: go
 go:
-  - 1.12
+  - 1.13
+
+env:
+  - GO111MODULE=on
 
 script:
   # Check whether files are syntactically correct.
