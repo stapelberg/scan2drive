@@ -38,6 +38,7 @@ import (
 	"github.com/stapelberg/scan2drive/internal/fss500"
 	"github.com/stapelberg/scan2drive/internal/fss500/usb"
 	"github.com/stapelberg/scan2drive/internal/g3"
+	"github.com/stapelberg/scan2drive/internal/gpio"
 	"github.com/stapelberg/scan2drive/internal/neonjpeg"
 	"github.com/stapelberg/scan2drive/proto"
 )
@@ -380,12 +381,46 @@ func (d *discardLCD) Read(p []byte) (n int, err error)  { return 0, nil }
 func (d *discardLCD) Write(p []byte) (n int, err error) { return len(p), nil }
 func (d *discardLCD) Close() error                      { return nil }
 
+func toggleDefaultUser() {
+	if got, want := len(users), 2; got != want {
+		log.Printf("unexpected number of users: got %d, want %d", got, want)
+		return
+	}
+	for sub, state := range users {
+		state.Default = !state.Default
+		if err := writeDefault(sub, state.Default); err != nil {
+			log.Println(err)
+			return
+		}
+		users[sub] = state
+	}
+}
+
 // LocalScanner waits for a locally connected Fujitsu ScanSnap iX500
 // to appear, then starts scans whenever the scan button is triggered.
 // Running in a goroutine.
 func LocalScanner() {
 	tr := trace.New("LocalScanner", "fss500")
 	defer tr.Finish()
+
+	func() {
+		g, err := gpio.NewGPIO()
+		if err != nil {
+			return
+		}
+		ch := make(chan gpio.Keypress)
+		const pin12 = 18 // BCM18
+		if err := g.NotifyKeypresses(pin12, ch); err != nil {
+			return
+		}
+
+		go func() {
+			for range ch {
+				log.Printf("Switch User key pressed")
+				toggleDefaultUser()
+			}
+		}()
+	}()
 
 	d, err := serial_lcd.Open("/dev/ttyACM0", 115200)
 	if err != nil {
