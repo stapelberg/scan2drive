@@ -53,9 +53,6 @@ var (
 	httpListenAddr = flag.String("http_listen_address",
 		":7120",
 		"[host]:port to listen on for RPCs")
-	scanService = flag.String("scan_service",
-		"",
-		"Optional [host]:port address to use for offloading the conversion of scanned documents. This could be your beefy workstation, while scan2drive itself runs on a Raspberry Pi. If unspecified, conversion will be done locally.")
 
 	injectAssets = flag.String("inject_assets",
 		"",
@@ -871,10 +868,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	pr := preferRemote{
-		local: maybePrefixLocalhost(*rpcListenAddr),
-	}
-	scanConn, err = grpc.Dial(*scanService, grpc.WithInsecure(), grpc.WithBalancer(&pr), grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(512*1024*1024)))
+	scanConn, err = grpc.Dial(maybePrefixLocalhost(*rpcListenAddr), grpc.WithInsecure(), grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(512*1024*1024)))
 	if err != nil {
 		log.Fatal(err)
 	}
