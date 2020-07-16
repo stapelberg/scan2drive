@@ -23,17 +23,15 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sort"
-	"strconv"
 	"strings"
-	"syscall"
 
 	"google.golang.org/grpc"
 
 	"github.com/gorilla/sessions"
 	"github.com/stapelberg/scan2drive/internal/bundled"
+	"github.com/stapelberg/scan2drive/internal/dispatch"
 	"github.com/stapelberg/scan2drive/proto"
 	"github.com/stapelberg/scan2drive/templates"
 
@@ -322,20 +320,11 @@ func startScanHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	output, err := exec.Command(*scanScript).Output()
+	name, err := dispatch.Scan(sub)
 	if err != nil {
-		// Make the exit status available for the client to interpret as
-		// SANE_Status.
-		if exitErr, ok := err.(*exec.ExitError); ok {
-			if waitStatus, ok := exitErr.Sys().(syscall.WaitStatus); ok {
-				w.Header().Add("X-Exit-Status", strconv.Itoa(waitStatus.ExitStatus()))
-			}
-		}
-		log.Printf("Error scanning: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	name := strings.TrimSpace(string(output))
 
 	// TODO: connecting to localhost:7119 might break when -rpc_listen_address is specified
 	conn, err := grpc.Dial("localhost:7119", grpc.WithInsecure(), grpc.WithBlock())

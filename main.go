@@ -889,6 +889,7 @@ func main() {
 	http.HandleFunc("/", indexHandler)
 
 	go LocalScanner()
+	go Airscan()
 	s := grpc.NewServer(grpc.MaxMsgSize(100 * 1024 * 1024))
 	proto.RegisterScanServer(s, &server{})
 	s.Serve(ln)
