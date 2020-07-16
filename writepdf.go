@@ -17,16 +17,17 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"image"
 	"io"
 	"time"
 
 	"github.com/stapelberg/scan2drive/internal/pdf"
 )
 
-func writePDF(w io.Writer, compressed []*bytes.Buffer) error {
+func writePDF(w io.Writer, compressed []*bytes.Buffer, bounds []image.Rectangle) error {
 	var kids []pdf.Object
 	var cnt int
-	for _, m := range compressed {
+	for idx, m := range compressed {
 		if m == nil {
 			continue
 		}
@@ -40,6 +41,7 @@ func writePDF(w io.Writer, compressed []*bytes.Buffer) error {
 						ObjectName: scanName,
 						Stream:     m.Bytes(),
 					},
+					Bounds: bounds[idx],
 				},
 			},
 			Parent: "pages",

@@ -16,11 +16,26 @@ package main
 
 import (
 	"fmt"
+	"io"
+	"io/ioutil"
 	"log"
+	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
 
 	"github.com/brutella/dnssd"
+	"github.com/stapelberg/scan2drive/internal/airscan"
+	"github.com/stapelberg/scan2drive/internal/atomic/write"
 	"github.com/stapelberg/scan2drive/internal/dispatch"
+	"github.com/stapelberg/scan2drive/proto"
 	"golang.org/x/net/context"
+	"golang.org/x/net/trace"
+
+	// We request a jpeg image from the scanner, so make sure the image package
+	// can decode jpeg images in later processing stages.
+	_ "image/jpeg"
 )
 
 type pushToAirscan struct {
@@ -41,18 +56,22 @@ func (p *pushToAirscan) Display() dispatch.Display {
 }
 
 func (p *pushToAirscan) Scan(user string) (string, error) {
-	log.Printf("trigger an airscan at host %q", p.host)
-	// TODO: trigger an airscan
-	return "", fmt.Errorf("not yet implemented")
+	tr := trace.New("AirScan", p.host)
+	defer tr.Finish()
+	tr.LazyPrintf("Starting AirScan at host %s.local", p.host)
+	return scanA(tr, p.host)
 }
 
 func Airscan() {
+	tr := trace.New("AirScan", "DNSSD")
+	defer tr.Finish()
+
 	log.Printf("Searching for AirScan scanners via DNSSD")
 
 	actionByHost := make(map[string]*pushToAirscan)
 
 	addFn := func(srv dnssd.Service) {
-		log.Printf("add: %v", srv)
+		log.Printf("DNSSD service discovered: %v", srv)
 
 		// 2020/07/16 13:54:34 add: {
 		// Name: Brother\ MFC-L2750DW\ series
@@ -106,4 +125,138 @@ func Airscan() {
 		return
 	}
 
+}
+
+func scanA(tr trace.Trace, host string) (string, error) {
+	start := time.Now()
+	client := proto.NewScanClient(scanConn)
+	resp, err := client.DefaultUser(context.Background(), &proto.DefaultUserRequest{})
+	if err != nil {
+		return "", err
+	}
+
+	relName := time.Now().Format(time.RFC3339)
+	scanDir := filepath.Join(*scansDir, resp.User, relName)
+
+	if err := os.MkdirAll(scanDir, 0700); err != nil {
+		return "", err
+	}
+
+	if err := scan1(tr, host, scanDir, relName, resp.User); err != nil {
+		return "", err
+	}
+
+	tr.LazyPrintf("scan done in %v", time.Since(start))
+
+	// NOTE: We currently call out to the generic ProcessScan() implementation,
+	// whereas the Fujitsu ScanSnap iX500 (fss500) specific implementation did a
+	// lot of the work itself, resulting in significant speed-ups on the
+	// Raspberry Pi 3.
+	//
+	// We should investigate whether similar speed-ups are required/achievable
+	// with the Raspberry Pi 4 and AirScan.
+
+	tr.LazyPrintf("processing scan")
+	if _, err := client.ProcessScan(context.Background(), &proto.ProcessScanRequest{User: resp.User, Dir: relName}); err != nil {
+		return "", err
+	}
+	tr.LazyPrintf("scan processed")
+
+	return relName, nil
+}
+
+func scan1(tr trace.Trace, host, scanDir, relName, respUser string) error {
+	cl := airscan.NewClient(host)
+
+	status, err := cl.ScannerStatus()
+	if err != nil {
+		return err
+	}
+	tr.LazyPrintf("status: %+v", status)
+	if got, want := status.State, "Idle"; got != want {
+		return fmt.Errorf("scanner not ready: in state %q, want %q", got, want)
+	}
+	if status.ADFState != "" {
+		if got, want := status.ADFState, "ScannerAdfLoaded"; got != want {
+			return fmt.Errorf("scanner feeder contains no documents: status %q, want %q", got, want)
+		}
+	}
+
+	// NOTE: With the Fujitsu ScanSnap iX500 (fss500), we always scanned 600
+	// dpi color full-duplex and retained the highest-quality
+	// originals. Other scanners (e.g. the Brother MFC-L2750DW) take A LOT
+	// longer than the fss500 for scanning duplex color originals, so with
+	// AirScan, we play it safe and only request what we really need:
+	// grayscale at 300 dpi.
+
+	// Same contents (aside from whitespace differences) as Apple’s
+	// AirScanScanner/41 (Image Preview app on Mac OS X 10.11):
+	// A4 at 300 dpi is 2480 x 3508 as per https://www.papersizes.org/a-sizes-in-pixels.htm
+	const settings = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<scan:ScanSettings xmlns:scan="http://schemas.hp.com/imaging/escl/2011/05/03" xmlns:pwg="http://www.pwg.org/schemas/2010/12/sm">
+  <pwg:Version>2.0</pwg:Version>
+  <pwg:ScanRegions pwg:MustHonor="true">
+    <pwg:ScanRegion>
+      <pwg:ContentRegionUnits>escl:ThreeHundredthsOfInches</pwg:ContentRegionUnits>
+      <pwg:Width>2480</pwg:Width>
+      <pwg:Height>3508</pwg:Height>
+      <pwg:XOffset>0</pwg:XOffset>
+      <pwg:YOffset>0</pwg:YOffset>
+    </pwg:ScanRegion>
+  </pwg:ScanRegions>
+  <pwg:DocumentFormat>image/jpeg</pwg:DocumentFormat>
+  <pwg:InputSource>Feeder</pwg:InputSource>
+  <scan:ColorMode>Grayscale8</scan:ColorMode>
+  <scan:XResolution>300</scan:XResolution>
+  <scan:YResolution>300</scan:YResolution>
+  <scan:Duplex>true</scan:Duplex>
+</scan:ScanSettings>`
+	loc, err := cl.CreateScanJob(settings)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		tr.LazyPrintf("Deleting ScanJob %s", loc)
+		if err := cl.DeleteScanJob(loc); err != nil {
+			log.Printf("error deleting AirScan job (probably harmless): %v", err)
+		}
+	}()
+	tr.LazyPrintf("ScanJob created: %s", loc)
+
+	for pagenum := 1; ; pagenum++ {
+		// TODO: correct URL path manipulation
+		resp, err := http.Get(loc.String() + "/NextDocument")
+		if err != nil {
+			return err
+		}
+		if resp.StatusCode == http.StatusNotFound {
+			tr.LazyPrintf("NotFound: all pages received")
+			break // all pages received
+		}
+		if got, want := resp.StatusCode, http.StatusOK; got != want {
+			b, _ := ioutil.ReadAll(resp.Body)
+			// TODO: only include b if it is text!
+			return fmt.Errorf("unexpected HTTP status: got %v (%s), want %v", resp.Status, strings.TrimSpace(string(b)), want)
+		}
+
+		tr.LazyPrintf("receiving page %d", pagenum)
+		fn := filepath.Join(scanDir, fmt.Sprintf("page%d.jpg", pagenum))
+		o, err := write.TempFile(fn)
+		if err != nil {
+			return err
+		}
+		defer o.Cleanup()
+
+		if _, err := io.Copy(o, resp.Body); err != nil {
+			return err
+		}
+
+		if err := o.CloseAtomicallyReplace(); err != nil {
+			return err
+		}
+	}
+
+	createCompleteMarker(respUser, relName, "scan")
+
+	return nil
 }

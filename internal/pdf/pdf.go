@@ -22,6 +22,7 @@ package pdf
 
 import (
 	"fmt"
+	"image"
 	"io"
 	"strings"
 	"time"
@@ -225,6 +226,8 @@ endobj`, int(p.ID), strings.Join(xObjects, "\n"), p.Contents, ids[p.Parent])
 // scanned with 600dpi (i.e. into 4960x7016 pixels).
 type Image struct {
 	Common
+
+	Bounds image.Rectangle
 }
 
 // Objects implements Object.
@@ -242,13 +245,13 @@ func (i *Image) Encode(w io.Writer, ids map[string]ObjectID) error {
     /EndOfBlock false
     /EndOfLine true
     /BlackIs1 false
-    /Rows 7016
-    /Columns 4960
+    /Rows %d
+    /Columns %d
   >>
   /Type /XObject
-  /Width 4960
+  /Width %d
   /Filter /CCITTFaxDecode
-  /Height 7016
+  /Height %d
   /Length %d
   /BitsPerComponent 1
   /ColorSpace /DeviceGray
@@ -256,7 +259,14 @@ func (i *Image) Encode(w io.Writer, ids map[string]ObjectID) error {
 stream
 %s
 endstream
-endobj`, int(i.Common.ID), len(i.Common.Stream), i.Common.Stream)
+endobj`,
+		int(i.Common.ID),
+		i.Bounds.Max.Y,
+		i.Bounds.Max.X,
+		i.Bounds.Max.X,
+		i.Bounds.Max.Y,
+		len(i.Common.Stream),
+		i.Common.Stream)
 	return err
 }
 

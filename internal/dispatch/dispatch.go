@@ -63,12 +63,13 @@ func Unregister(a ScanAction) {
 
 func Scan(user string) (name string, _ error) {
 	actionsMu.Lock()
-	defer actionsMu.Unlock()
 	if len(actions) == 0 {
+		actionsMu.Unlock()
 		// should be reported as sth along the lines of “no scanners found”
 		return "", fmt.Errorf("dispatch failed: no actions registered")
 	}
 	mostRecent := actions[len(actions)-1]
+	actionsMu.Unlock()
 	return mostRecent.Scan(user)
 }
 

@@ -27,6 +27,7 @@ import (
 
 func convertLogic(tr trace.Trace, length int, cb func(int) ([]byte, error)) (pdf []byte, thumb []byte, err error) {
 	compressed := make([]*bytes.Buffer, length)
+	bounds := make([]image.Rectangle, length)
 	var first *image.Gray
 	for idx := 0; idx < length; idx++ {
 		var binarized *image.Gray
@@ -61,6 +62,7 @@ func convertLogic(tr trace.Trace, length int, cb func(int) ([]byte, error)) (pdf
 			return nil, nil, err
 		}
 		compressed[idx] = &buf
+		bounds[idx] = binarized.Bounds()
 		tr.LazyPrintf("compressed into %d bytes", buf.Len())
 	}
 
@@ -74,7 +76,7 @@ func convertLogic(tr trace.Trace, length int, cb func(int) ([]byte, error)) (pdf
 	}
 
 	var buf bytes.Buffer
-	if err := writePDF(&buf, compressed); err != nil {
+	if err := writePDF(&buf, compressed, bounds); err != nil {
 		return nil, nil, err
 	}
 
