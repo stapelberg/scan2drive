@@ -22,8 +22,13 @@ import (
 	"sync"
 )
 
+type Display struct {
+	Name    string
+	IconURL string
+}
+
 type ScanAction interface {
-	TargetName() string
+	Display() Display
 	Scan(user string) (name string, _ error)
 }
 
@@ -35,7 +40,25 @@ var (
 func Register(a ScanAction) {
 	actionsMu.Lock()
 	defer actionsMu.Unlock()
+	for _, action := range actions {
+		if action != a {
+			continue
+		}
+		return // already registered
+	}
 	actions = append(actions, a)
+}
+
+func Unregister(a ScanAction) {
+	actionsMu.Lock()
+	defer actionsMu.Unlock()
+	for idx, action := range actions {
+		if action != a {
+			continue
+		}
+		actions = append(actions[:idx], actions[idx+1:]...)
+		return
+	}
 }
 
 func Scan(user string) (name string, _ error) {
@@ -47,4 +70,14 @@ func Scan(user string) (name string, _ error) {
 	}
 	mostRecent := actions[len(actions)-1]
 	return mostRecent.Scan(user)
+}
+
+func DefaultScanTarget() Display {
+	actionsMu.Lock()
+	defer actionsMu.Unlock()
+	if len(actions) == 0 {
+		return Display{}
+	}
+	mostRecent := actions[len(actions)-1]
+	return mostRecent.Display()
 }

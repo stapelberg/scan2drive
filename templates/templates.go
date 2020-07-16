@@ -115,8 +115,18 @@ body {
 
   
   <div class="fixed-action-btn" display="none">
-    <a class="btn-floating btn-large waves-effect waves-light red" onclick="scan()">
-      <i class="large material-icons">scanner</i>
+    <a class="btn-floating btn-large waves-effect waves-light red" onclick="scan()"
+       {{ if (ne .defaultscantarget.Name "") }}
+       title="Scan from {{ .defaultscantarget.Name }}"
+       {{ end }}
+       >
+      {{ if (and (ne .defaultscantarget.Name "") (ne .defaultscantarget.IconURL "")) }}
+      <img src="{{ .defaultscantarget.IconURL }}" title="Scan from {{ .defaultscantarget.Name }}" alt="Scan from {{ .defaultscantarget.Name }}" width="32" height="32" style="top: 8px">
+      {{ else if (ne .defaultscantarget.Name "") }}
+      <i class="large material-icons" title="Scan from {{ .defaultscantarget.Name }}">scanner</i>
+      {{ else }}
+      <i class="large material-icons" title="Scan">scanner</i>
+      {{ end }}
     </a>
   </div>
 

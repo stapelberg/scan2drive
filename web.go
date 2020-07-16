@@ -99,13 +99,14 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 
 	err = templates.IndexTpl.ExecuteTemplate(w, "Index", map[string]interface{}{
 		// TODO: show drive connection status in settings drop-down
-		"sub":        sub,
-		"user":       state,
-		"scans":      scans,
-		"keys":       keys,
-		"subs":       subs,
-		"users":      tusers,
-		"defaultsub": defaultSub,
+		"sub":               sub,
+		"user":              state,
+		"scans":             scans,
+		"keys":              keys,
+		"subs":              subs,
+		"users":             tusers,
+		"defaultsub":        defaultSub,
+		"defaultscantarget": dispatch.DefaultScanTarget(),
 	})
 	scansMu.RUnlock()
 	if err != nil {
