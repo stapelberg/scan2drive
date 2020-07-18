@@ -21,8 +21,10 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"net/http/httputil"
 	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -50,6 +52,10 @@ func constantsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func indexHandler(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path != "/" {
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
 	session, err := store.Get(r, sessionCookieName)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -97,6 +103,13 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 	usersMu.RUnlock()
 	sort.Strings(subs)
 
+	display := dispatch.DefaultScanTarget()
+	if u, err := url.Parse(display.IconURL); err == nil {
+		u.Host = r.Host
+		u.Path = "/scanicon/" + path.Base(u.Path)
+		display.IconURL = u.String()
+	}
+
 	err = templates.IndexTpl.ExecuteTemplate(w, "Index", map[string]interface{}{
 		// TODO: show drive connection status in settings drop-down
 		"sub":               sub,
@@ -106,7 +119,7 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 		"subs":              subs,
 		"users":             tusers,
 		"defaultsub":        defaultSub,
-		"defaultscantarget": dispatch.DefaultScanTarget(),
+		"defaultscantarget": display,
 	})
 	scansMu.RUnlock()
 	if err != nil {
@@ -393,6 +406,29 @@ func scanStatusHandler(w http.ResponseWriter, r *http.Request) {
 	}); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
+}
+
+func scanIconHandler(w http.ResponseWriter, r *http.Request) {
+	if _, err := requireAuth(w, r); err != nil {
+		return
+	}
+
+	display := dispatch.DefaultScanTarget()
+	if display.IconURL == "" {
+		http.Error(w, "default scanner has no icon URL", http.StatusNotFound)
+		return
+	}
+
+	// Remove the .local. avahi suffix to go through local DNS, as there is no
+	// avahi on gokrazy (yet?).
+	iconURL := strings.ReplaceAll(display.IconURL, ".local.", "")
+	u, err := url.Parse(iconURL)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	u.Path = path.Dir(u.Path)
+	httputil.NewSingleHostReverseProxy(u).ServeHTTP(w, r)
 }
 
 func renameScanHandler(w http.ResponseWriter, r *http.Request) {

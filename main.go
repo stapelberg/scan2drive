@@ -885,6 +885,7 @@ func main() {
 	http.HandleFunc("/storedefaultuser", storeDefaultUser)
 	http.HandleFunc("/startscan", startScanHandler)
 	http.HandleFunc("/scanstatus", scanStatusHandler)
+	http.Handle("/scanicon/", http.StripPrefix("/scanicon/", http.HandlerFunc(scanIconHandler)))
 	http.HandleFunc("/renamescan", renameScanHandler)
 	http.HandleFunc("/", indexHandler)
 
