@@ -96,11 +96,18 @@ func Airscan() {
 		// IPs: [10.0.0.12 fe80::3e2a:aaaa:bbbb:cccc]
 		// IfaceIPs:map[]
 
-		// TODO: why is the name escaped? i see backslashes in the UI
+		// miekg/dns escapes characters in DNS labels, which as per RFC1034 and
+		// RFC1035 does not actually permit whitespace. The purpose of escaping
+		// originally appears to be to use these labels in a DNS master file,
+		// but for our UI, the backslashes look just wrong.
+		unescapedName := strings.ReplaceAll(srv.Name, "\\", "")
+
+		// TODO: use srv.Text["ty"] if non-empty once
+		// https://github.com/brutella/dnssd/pull/19 was merged
 
 		if action, ok := actionByHost[srv.Host]; !ok {
 			action = &pushToAirscan{
-				name:    srv.Name,
+				name:    unescapedName,
 				host:    srv.Host,
 				iconURL: srv.Text["representation"],
 			}
@@ -117,9 +124,9 @@ func Airscan() {
 			delete(actionByHost, srv.Host)
 		}
 	}
-	// TODO: where is _uscan._tcp canonically defined?
-	const service = "_uscan._tcp.local."
-	// TODO: are the functions always called in the same goroutine?
+	const service = "_uscan._tcp.local." // AirScan DNSSD service name
+	// addFn and rmvFn are always called (sequentially) from the same goroutine,
+	// i.e. no locking is required.
 	if err := dnssd.LookupType(context.Background(), service, addFn, rmvFn); err != nil {
 		log.Printf("DNSSD init failed: %v", err)
 		return
