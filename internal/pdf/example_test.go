@@ -3,6 +3,7 @@ package pdf_test
 import (
 	"bytes"
 	"fmt"
+	"image"
 	"log"
 	"os"
 	"time"
@@ -24,6 +25,7 @@ func Example() {
 								ObjectName: "scan0",
 								Stream:     []byte("ß"),
 							},
+							Bounds: image.Rect(0, 0, 4960, 7016),
 						},
 					},
 					Parent: "pages",
