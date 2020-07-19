@@ -163,7 +163,7 @@ func oauthHandler(w http.ResponseWriter, r *http.Request) {
 		// Only on the first login, we get a RefreshToken. All subsequent
 		// logins will just have an AccessToken. In order to force a first
 		// login, the user needs to revoke the scan2drive permissions on
-		// https://security.google.com/settings/u/0/security/permissions
+		// https://myaccount.google.com/u/0/permissions
 		usersMu.RLock()
 		oldRefreshToken := ""
 		if users[claimset.Sub].Token != nil {

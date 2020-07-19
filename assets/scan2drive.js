@@ -17,7 +17,8 @@ function start() {
         var auth2 = gapi.auth2.init({
 	    client_id: clientID,
 	    // The “profile” and “email” scope are always requested.
-	    scope: 'https://www.googleapis.com/auth/drive',
+	    // See also https://developers.google.com/drive/api/v2/about-auth
+	    scope: 'https://www.googleapis.com/auth/drive.file',
         });
         auth2.then(function() {
 	    user = auth2.currentUser.get();
