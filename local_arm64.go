@@ -304,8 +304,10 @@ func scan(tr trace.Trace, dev io.ReadWriter, display *serial_lcd.LCD) (err error
 	// need to reverse the order.
 	sort.Slice(pages, func(i, j int) bool { return pages[i].cnt < pages[j].cnt })
 	compressed := make([]*bytes.Buffer, 0, len(pages))
+	bounds := make([]image.Rectangle, 0, len(pages))
 	for i := len(pages) - 1; i >= 0; i-- {
 		compressed = append(compressed, pages[i].compressed)
+		bounds = append(bounds, image.Rect(0, 0, 4960, 7016))
 	}
 
 	display.Clear()
@@ -320,7 +322,7 @@ func scan(tr trace.Trace, dev io.ReadWriter, display *serial_lcd.LCD) (err error
 	}
 	defer o.Close()
 	bufw := bufio.NewWriter(o)
-	if err := writePDF(bufw, compressed); err != nil {
+	if err := writePDF(bufw, compressed, bounds); err != nil {
 		return err
 	}
 	if err := bufw.Flush(); err != nil {
