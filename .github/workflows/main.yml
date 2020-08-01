@@ -1,0 +1,24 @@
+name: CI
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  testandinstall:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Ensure all files were formatted as per gofmt
+      run: |
+        [ "$(gofmt -l $(find . -name '*.go') 2>&1)" = "" ]
+
+    - name: run tests
+      run: go test ./...
+
+    - name: install binaries
+      run: go install github.com/stapelberg/scan2drive github.com/stapelberg/scan2drive/cmd/...
