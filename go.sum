@@ -37,6 +37,8 @@ github.com/augustoroman/serial_lcd v0.0.0-20141102051859-34f3eb309a2e/go.mod h1:
 github.com/beevik/ntp v0.2.0/go.mod h1:hIHWr+l3+/clUnF44zdK+CWW7fO8dR5cIylAQ76NRpg=
 github.com/brutella/dnssd v1.1.1 h1:Ar5ytE2Z9x5DTmuNnASlMTBpcQWQLm9ceHb326s0ykg=
 github.com/brutella/dnssd v1.1.1/go.mod h1:9gIcMKQSJvYlO2x+HR50cqqjghb9IWK9hvykmyveVVs=
+github.com/brutella/dnssd v1.1.2-0.20200724110520-5bf037ffaa39 h1:91GYycei5JUbTorjYRlrffznpfmb31yIw9yGdPBYKVA=
+github.com/brutella/dnssd v1.1.2-0.20200724110520-5bf037ffaa39/go.mod h1:9gIcMKQSJvYlO2x+HR50cqqjghb9IWK9hvykmyveVVs=
 github.com/census-instrumentation/opencensus-proto v0.2.1/go.mod h1:f6KPmirojxKA12rnyqOA5BBL4O983OfeGPqjHWSTneU=
 github.com/chzyer/logex v1.1.10/go.mod h1:+Ywpsq7O8HXn0nuIou7OrIPyXbp3wmkHB+jjWRnGsAI=
 github.com/chzyer/readline v0.0.0-20180603132655-2972be24d48e/go.mod h1:nSuG5e5PlCu98SY8svDHJxuZscDgtXS6KTTbou5AhLI=
