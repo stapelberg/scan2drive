@@ -127,7 +127,7 @@ function pollScan(name) {
             }
             if (data.Done) {
                 $('#scan-dialog paper-spinner-lite').attr('active', null); // TODO
-                $('.fixed-action-btn i').text('scanner');
+                $('.fixed-action-btn i,.fixed-action-btn img').text('scanner');
                 $('.fixed-action-btn a').removeClass('disabled');
                 $('#scan-dialog').off('iron-overlay-canceled');
                 var sub = user.getBasicProfile().getId();
