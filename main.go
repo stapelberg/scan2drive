@@ -791,6 +791,9 @@ func oauthConfigFromJSON(jsonKey []byte) (*oauth2.Config, error) {
 	}, nil
 }
 
+var mqttPublish chan<- publishRequest
+var mqttScanRequest = make(chan scanRequest, 1)
+
 func main() {
 	flag.Parse()
 
@@ -889,8 +892,12 @@ func main() {
 	http.HandleFunc("/renamescan", renameScanHandler)
 	http.HandleFunc("/", indexHandler)
 
+	// Used by LocalScanner goroutine
+	mqttPublish = MQTT()
+
 	go LocalScanner()
 	go Airscan()
+
 	s := grpc.NewServer(grpc.MaxMsgSize(100 * 1024 * 1024))
 	proto.RegisterScanServer(s, &server{})
 	s.Serve(ln)

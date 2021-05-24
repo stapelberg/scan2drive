@@ -6,6 +6,7 @@ require (
 	cloud.google.com/go v0.60.0 // indirect
 	github.com/augustoroman/serial_lcd v0.0.0-20141102051859-34f3eb309a2e
 	github.com/brutella/dnssd v1.1.2-0.20200724110520-5bf037ffaa39
+	github.com/eclipse/paho.mqtt.golang v1.3.4 // indirect
 	github.com/gokrazy/gokrazy v0.0.0-20200629220445-6739b590288a
 	github.com/gokrazy/internal v0.0.0-20200626090505-539bb61868de // indirect
 	github.com/golang/protobuf v1.4.2

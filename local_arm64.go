@@ -43,6 +43,21 @@ import (
 	"github.com/stapelberg/scan2drive/proto"
 )
 
+var lastStatus string
+
+func publishStatus(status string) {
+	// Prevent duplicate messages if status has not changed
+	if lastStatus == status {
+		return
+	}
+	lastStatus = status
+	mqttPublish <- publishRequest{
+		Topic:    "scan2drive/ui/status",
+		Retained: true,
+		Payload:  []byte(status),
+	}
+}
+
 func scan(tr trace.Trace, dev io.ReadWriter, display *serial_lcd.LCD) (err error) {
 	defer func() {
 		tr.LazyPrintf("error: %v", err)
@@ -54,6 +69,7 @@ func scan(tr trace.Trace, dev io.ReadWriter, display *serial_lcd.LCD) (err error
 	display.Clear()
 	display.MoveTo(1, 1)
 	fmt.Fprintf(display, "scanning...")
+	publishStatus("scanning...")
 
 	start := time.Now()
 	client := proto.NewScanClient(scanConn)
@@ -313,6 +329,7 @@ func scan(tr trace.Trace, dev io.ReadWriter, display *serial_lcd.LCD) (err error
 	display.Clear()
 	display.MoveTo(1, 1)
 	fmt.Fprintf(display, "writing %d pages", len(pages))
+	publishStatus(fmt.Sprintf("writing %d pages", len(pages)))
 
 	// write PDF
 	fn := filepath.Join(scanDir, "scan.pdf")
@@ -367,6 +384,7 @@ func scan(tr trace.Trace, dev io.ReadWriter, display *serial_lcd.LCD) (err error
 	display.Clear()
 	display.MoveTo(1, 1)
 	fmt.Fprintf(display, "uploading %d pages", len(pages))
+	publishStatus(fmt.Sprintf("uploading %d pages", len(pages)))
 
 	tr.LazyPrintf("processing scan")
 	if _, err := client.ProcessScan(context.Background(), &proto.ProcessScanRequest{User: resp.User, Dir: relName}); err != nil {
@@ -459,6 +477,7 @@ func LocalScanner() {
 		fmt.Fprintf(d, "scan2"+strings.ToLower(defaultUser()))
 		d.MoveTo(1, 2)
 		fmt.Fprintf(d, "no scanner found")
+		publishStatus("powersave") // magic string that turns off the display
 	}
 	showNotReady()
 
@@ -479,6 +498,7 @@ func LocalScanner() {
 			fmt.Fprintf(d, "scan2"+strings.ToLower(defaultUser()))
 			d.MoveTo(1, 2)
 			fmt.Fprintf(d, "scanner ready")
+			publishStatus("scanner ready")
 		}
 
 		var lastChange time.Time
@@ -488,6 +508,13 @@ func LocalScanner() {
 			if err != nil {
 				tr.LazyPrintf("hardware status request failed: %v", err)
 				break
+			}
+			select {
+			case sr := <-mqttScanRequest:
+				// TODO: set specified user
+				// TODO: set specified source
+				publishStatus(fmt.Sprintf("plumbing: %+v", sr))
+			default:
 			}
 			if hwStatus.ScanSw && time.Since(lastChange) > 5*time.Second {
 				lastChange = time.Now()
@@ -500,6 +527,7 @@ func LocalScanner() {
 					d.Clear()
 					d.MoveTo(1, 1)
 					fmt.Fprintf(d, "%v", err)
+					publishStatus(err.Error())
 				} else {
 					showReady()
 				}
