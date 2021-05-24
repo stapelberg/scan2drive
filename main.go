@@ -197,7 +197,7 @@ func readUsers() error {
 			}
 			o, err := osrv.Userinfo.Get().Do()
 			if err != nil {
-				return err
+				return fmt.Errorf("getting userinfo for %q: %v", sub, err)
 			}
 			state.Name = o.Name
 			state.Picture = o.Picture
@@ -829,7 +829,7 @@ func main() {
 		log.Fatal(err)
 	}
 	if err := readUsers(); err != nil {
-		log.Fatal(err)
+		log.Fatalf("readUsers: %v", err)
 	}
 	log.Printf("users = %+v\n", users)
 
