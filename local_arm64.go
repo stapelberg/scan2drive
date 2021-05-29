@@ -34,7 +34,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/augustoroman/serial_lcd"
-	"github.com/stapelberg/scan2drive/internal/atomic/write"
+	"github.com/google/renameio"
 	"github.com/stapelberg/scan2drive/internal/dispatch"
 	"github.com/stapelberg/scan2drive/internal/fss500"
 	"github.com/stapelberg/scan2drive/internal/fss500/usb"
@@ -174,7 +174,7 @@ func scan(tr trace.Trace, user string, dev io.ReadWriter, display *serial_lcd.LC
 		)
 		type pageState struct {
 			cnt  int
-			out  *write.PendingFile
+			out  *renameio.PendingFile
 			enc  *neonjpeg.Encoder
 			rest []byte // buffers pixels until 16 full rows
 			ch   chan []byte
@@ -189,7 +189,7 @@ func scan(tr trace.Trace, user string, dev io.ReadWriter, display *serial_lcd.LC
 		for side := range []int{front, back} {
 			cnt++
 			fn := filepath.Join(scanDir, fmt.Sprintf("page%d.jpg", cnt))
-			o, err := write.TempFile(fn)
+			o, err := renameio.TempFile("", fn)
 			if err != nil {
 				return err
 			}
@@ -508,24 +508,26 @@ func LocalScanner() {
 			}
 			select {
 			case sr := <-mqttScanRequest:
-				tr := trace.New("MQTT", "ScanRequest")
-				defer tr.Finish()
+				func() {
+					tr := trace.New("MQTT", "ScanRequest")
+					defer tr.Finish()
 
-				user := userByFirstName(sr.User)
-				if user == "" {
-					publishStatus(fmt.Sprintf("No such user %q", sr.User))
-					break
-				}
+					user := userByFirstName(sr.User)
+					if user == "" {
+						publishStatus(fmt.Sprintf("No such user %q", sr.User))
+						return
+					}
 
-				if sr.Source == "usb" {
-					if err := scan(tr, user, dev, &d); err != nil {
-						publishStatus(err.Error())
+					if sr.Source == "usb" {
+						if err := scan(tr, user, dev, &d); err != nil {
+							publishStatus(err.Error())
+						}
+					} else {
+						if _, err := dispatch.Scan(user); err != nil {
+							publishStatus(err.Error())
+						}
 					}
-				} else {
-					if _, err := dispatch.Scan(user); err != nil {
-						publishStatus(err.Error())
-					}
-				}
+				}()
 			default:
 			}
 			if hwStatus.ScanSw && time.Since(lastChange) > 5*time.Second {

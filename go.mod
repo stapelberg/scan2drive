@@ -6,14 +6,16 @@ require (
 	cloud.google.com/go v0.60.0 // indirect
 	github.com/augustoroman/serial_lcd v0.0.0-20141102051859-34f3eb309a2e
 	github.com/brutella/dnssd v1.1.2-0.20200724110520-5bf037ffaa39
-	github.com/eclipse/paho.mqtt.golang v1.3.4 // indirect
+	github.com/eclipse/paho.mqtt.golang v1.3.4
 	github.com/gokrazy/gokrazy v0.0.0-20200629220445-6739b590288a
 	github.com/gokrazy/internal v0.0.0-20200626090505-539bb61868de // indirect
 	github.com/golang/protobuf v1.4.2
+	github.com/google/renameio v0.1.0
 	github.com/gorilla/context v1.1.1
 	github.com/gorilla/securecookie v1.1.1
 	github.com/gorilla/sessions v1.2.0
 	github.com/signintech/gopdf v0.9.0
+	github.com/stapelberg/airscan v0.0.0-20210404065721-9b9f6be23a95
 	github.com/tarm/goserial v0.0.0-20151007205400-b3440c3c6355 // indirect
 	go.opencensus.io v0.22.4 // indirect
 	golang.org/x/image v0.0.0-20190802002840-cff245a6509b

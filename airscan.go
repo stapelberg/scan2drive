@@ -17,17 +17,16 @@ package main
 import (
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/brutella/dnssd"
-	"github.com/stapelberg/scan2drive/internal/airscan"
-	"github.com/stapelberg/scan2drive/internal/atomic/write"
+	"github.com/google/renameio"
+	"github.com/stapelberg/airscan"
+	"github.com/stapelberg/airscan/preset"
 	"github.com/stapelberg/scan2drive/internal/dispatch"
 	"github.com/stapelberg/scan2drive/proto"
 	"golang.org/x/net/context"
@@ -187,11 +186,6 @@ func scan1(tr trace.Trace, host, scanDir, relName, respUser string) error {
 	if got, want := status.State, "Idle"; got != want {
 		return fmt.Errorf("scanner not ready: in state %q, want %q", got, want)
 	}
-	if status.ADFState != "" {
-		if got, want := status.ADFState, "ScannerAdfLoaded"; got != want {
-			return fmt.Errorf("scanner feeder contains no documents: status %q, want %q", got, want)
-		}
-	}
 
 	// NOTE: With the Fujitsu ScanSnap iX500 (fss500), we always scanned 600
 	// dpi color full-duplex and retained the highest-quality
@@ -200,71 +194,44 @@ func scan1(tr trace.Trace, host, scanDir, relName, respUser string) error {
 	// AirScan, we play it safe and only request what we really need:
 	// grayscale at 300 dpi.
 
-	// Same contents (aside from whitespace differences) as Apple’s
-	// AirScanScanner/41 (Image Preview app on Mac OS X 10.11):
-	// A4 at 300 dpi is 2480 x 3508 as per https://www.papersizes.org/a-sizes-in-pixels.htm
-	const settings = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<scan:ScanSettings xmlns:scan="http://schemas.hp.com/imaging/escl/2011/05/03" xmlns:pwg="http://www.pwg.org/schemas/2010/12/sm">
-  <pwg:Version>2.0</pwg:Version>
-  <pwg:ScanRegions pwg:MustHonor="true">
-    <pwg:ScanRegion>
-      <pwg:ContentRegionUnits>escl:ThreeHundredthsOfInches</pwg:ContentRegionUnits>
-      <pwg:Width>2480</pwg:Width>
-      <pwg:Height>3508</pwg:Height>
-      <pwg:XOffset>0</pwg:XOffset>
-      <pwg:YOffset>0</pwg:YOffset>
-    </pwg:ScanRegion>
-  </pwg:ScanRegions>
-  <pwg:DocumentFormat>image/jpeg</pwg:DocumentFormat>
-  <pwg:InputSource>Feeder</pwg:InputSource>
-  <scan:ColorMode>Grayscale8</scan:ColorMode>
-  <scan:XResolution>300</scan:XResolution>
-  <scan:YResolution>300</scan:YResolution>
-  <scan:Duplex>true</scan:Duplex>
-</scan:ScanSettings>`
-	loc, err := cl.CreateScanJob(settings)
+	settings := preset.GrayscaleA4ADF()
+	// For the ADF, the ScanSnap is better.
+	// We use the Brother for its flatbed scan only.
+	settings.InputSource = "Platen"
+	scan, err := cl.Scan(settings)
 	if err != nil {
 		return err
 	}
 	defer func() {
-		tr.LazyPrintf("Deleting ScanJob %s", loc)
-		if err := cl.DeleteScanJob(loc); err != nil {
+		tr.LazyPrintf("Deleting ScanJob %s", scan)
+		if err := scan.Close(); err != nil {
 			log.Printf("error deleting AirScan job (probably harmless): %v", err)
 		}
 	}()
-	tr.LazyPrintf("ScanJob created: %s", loc)
+	tr.LazyPrintf("ScanJob created: %s", scan)
 
-	for pagenum := 1; ; pagenum++ {
-		// TODO: correct URL path manipulation
-		resp, err := http.Get(loc.String() + "/NextDocument")
-		if err != nil {
-			return err
-		}
-		if resp.StatusCode == http.StatusNotFound {
-			tr.LazyPrintf("NotFound: all pages received")
-			break // all pages received
-		}
-		if got, want := resp.StatusCode, http.StatusOK; got != want {
-			b, _ := ioutil.ReadAll(resp.Body)
-			// TODO: only include b if it is text!
-			return fmt.Errorf("unexpected HTTP status: got %v (%s), want %v", resp.Status, strings.TrimSpace(string(b)), want)
-		}
-
-		tr.LazyPrintf("receiving page %d", pagenum)
+	pagenum := 1
+	for scan.ScanPage() {
 		fn := filepath.Join(scanDir, fmt.Sprintf("page%d.jpg", pagenum))
-		o, err := write.TempFile(fn)
+
+		o, err := renameio.TempFile("", fn)
 		if err != nil {
 			return err
 		}
 		defer o.Cleanup()
 
-		if _, err := io.Copy(o, resp.Body); err != nil {
+		if _, err := io.Copy(o, scan.CurrentPage()); err != nil {
 			return err
 		}
 
 		if err := o.CloseAtomicallyReplace(); err != nil {
 			return err
 		}
+
+		pagenum++
+	}
+	if err := scan.Err(); err != nil {
+		return err
 	}
 
 	createCompleteMarker(respUser, relName, "scan")
