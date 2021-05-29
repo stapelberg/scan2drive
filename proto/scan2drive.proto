@@ -3,6 +3,8 @@ syntax = "proto3";
 
 package proto;
 
+option go_package = "github.com/stapelberg/scan2drive/proto;proto";
+
 message DefaultUserRequest {
 }
 

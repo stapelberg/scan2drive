@@ -24,6 +24,6 @@ require (
 	golang.org/x/text v0.3.3 // indirect
 	google.golang.org/api v0.28.0
 	google.golang.org/genproto v0.0.0-20200702021140-07506425bd67 // indirect
-	google.golang.org/grpc v1.30.0
+	google.golang.org/grpc v1.38.0
 	google.golang.org/protobuf v1.25.0
 )

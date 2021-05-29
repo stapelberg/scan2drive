@@ -276,6 +276,8 @@ func writeDefault(sub string, isDefault bool) error {
 }
 
 type server struct {
+	// Required by gRPC for forward compatibility:
+	proto.UnimplementedScanServer
 }
 
 type dirState struct {
