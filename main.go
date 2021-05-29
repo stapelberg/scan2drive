@@ -642,6 +642,17 @@ func processAllScans() error {
 	return examineScansDir()
 }
 
+func userByFirstName(name string) string {
+	usersMu.RLock()
+	defer usersMu.RUnlock()
+	for sub, state := range users {
+		if strings.Contains(state.Name, name) {
+			return sub
+		}
+	}
+	return ""
+}
+
 func (s *server) DefaultUser(ctx context.Context, in *proto.DefaultUserRequest) (*proto.DefaultUserReply, error) {
 	usersMu.RLock()
 	defer usersMu.RUnlock()

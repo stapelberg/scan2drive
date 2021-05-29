@@ -58,8 +58,16 @@ func (p *pushToAirscan) Display() dispatch.Display {
 func (p *pushToAirscan) Scan(user string) (string, error) {
 	tr := trace.New("AirScan", p.host)
 	defer tr.Finish()
-	tr.LazyPrintf("Starting AirScan at host %s.local", p.host)
-	return scanA(tr, p.host)
+
+	client := proto.NewScanClient(scanConn)
+	resp, err := client.DefaultUser(context.Background(), &proto.DefaultUserRequest{})
+	if err != nil {
+		return "", err
+	}
+
+	tr.LazyPrintf("Starting AirScan at host %s.local for user %s", p.host, resp.User)
+
+	return scanA(tr, resp.User, p.host)
 }
 
 func Airscan() {
@@ -134,22 +142,17 @@ func Airscan() {
 
 }
 
-func scanA(tr trace.Trace, host string) (string, error) {
+func scanA(tr trace.Trace, user, host string) (string, error) {
 	start := time.Now()
-	client := proto.NewScanClient(scanConn)
-	resp, err := client.DefaultUser(context.Background(), &proto.DefaultUserRequest{})
-	if err != nil {
-		return "", err
-	}
 
 	relName := time.Now().Format(time.RFC3339)
-	scanDir := filepath.Join(*scansDir, resp.User, relName)
+	scanDir := filepath.Join(*scansDir, user, relName)
 
 	if err := os.MkdirAll(scanDir, 0700); err != nil {
 		return "", err
 	}
 
-	if err := scan1(tr, host, scanDir, relName, resp.User); err != nil {
+	if err := scan1(tr, host, scanDir, relName, user); err != nil {
 		return "", err
 	}
 
@@ -164,7 +167,8 @@ func scanA(tr trace.Trace, host string) (string, error) {
 	// with the Raspberry Pi 4 and AirScan.
 
 	tr.LazyPrintf("processing scan")
-	if _, err := client.ProcessScan(context.Background(), &proto.ProcessScanRequest{User: resp.User, Dir: relName}); err != nil {
+	client := proto.NewScanClient(scanConn)
+	if _, err := client.ProcessScan(context.Background(), &proto.ProcessScanRequest{User: user, Dir: relName}); err != nil {
 		return "", err
 	}
 	tr.LazyPrintf("scan processed")

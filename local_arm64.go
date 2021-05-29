@@ -35,6 +35,7 @@ import (
 
 	"github.com/augustoroman/serial_lcd"
 	"github.com/stapelberg/scan2drive/internal/atomic/write"
+	"github.com/stapelberg/scan2drive/internal/dispatch"
 	"github.com/stapelberg/scan2drive/internal/fss500"
 	"github.com/stapelberg/scan2drive/internal/fss500/usb"
 	"github.com/stapelberg/scan2drive/internal/g3"
@@ -58,7 +59,7 @@ func publishStatus(status string) {
 	}
 }
 
-func scan(tr trace.Trace, dev io.ReadWriter, display *serial_lcd.LCD) (err error) {
+func scan(tr trace.Trace, user string, dev io.ReadWriter, display *serial_lcd.LCD) (err error) {
 	defer func() {
 		tr.LazyPrintf("error: %v", err)
 		if err != nil {
@@ -73,13 +74,9 @@ func scan(tr trace.Trace, dev io.ReadWriter, display *serial_lcd.LCD) (err error
 
 	start := time.Now()
 	client := proto.NewScanClient(scanConn)
-	resp, err := client.DefaultUser(context.Background(), &proto.DefaultUserRequest{})
-	if err != nil {
-		return err
-	}
 
 	relName := time.Now().Format(time.RFC3339)
-	scanDir := filepath.Join(*scansDir, resp.User, relName)
+	scanDir := filepath.Join(*scansDir, user, relName)
 
 	if err := os.MkdirAll(scanDir, 0700); err != nil {
 		return err
@@ -275,7 +272,7 @@ func scan(tr trace.Trace, dev io.ReadWriter, display *serial_lcd.LCD) (err error
 			if err := ps.out.CloseAtomicallyReplace(); err != nil {
 				return err
 			}
-			createCompleteMarker(resp.User, relName, "scan")
+			createCompleteMarker(user, relName, "scan")
 		}
 
 		tr.LazyPrintf("scan done in %v", time.Since(start))
@@ -379,7 +376,7 @@ func scan(tr trace.Trace, dev io.ReadWriter, display *serial_lcd.LCD) (err error
 		}
 	}
 
-	createCompleteMarker(resp.User, relName, "convert")
+	createCompleteMarker(user, relName, "convert")
 
 	display.Clear()
 	display.MoveTo(1, 1)
@@ -387,7 +384,7 @@ func scan(tr trace.Trace, dev io.ReadWriter, display *serial_lcd.LCD) (err error
 	publishStatus(fmt.Sprintf("uploading %d pages", len(pages)))
 
 	tr.LazyPrintf("processing scan")
-	if _, err := client.ProcessScan(context.Background(), &proto.ProcessScanRequest{User: resp.User, Dir: relName}); err != nil {
+	if _, err := client.ProcessScan(context.Background(), &proto.ProcessScanRequest{User: user, Dir: relName}); err != nil {
 		return err
 	}
 	tr.LazyPrintf("scan processed")
@@ -511,9 +508,24 @@ func LocalScanner() {
 			}
 			select {
 			case sr := <-mqttScanRequest:
-				// TODO: set specified user
-				// TODO: set specified source
-				publishStatus(fmt.Sprintf("plumbing: %+v", sr))
+				tr := trace.New("MQTT", "ScanRequest")
+				defer tr.Finish()
+
+				user := userByFirstName(sr.User)
+				if user == "" {
+					publishStatus(fmt.Sprintf("No such user %q", sr.User))
+					break
+				}
+
+				if sr.Source == "usb" {
+					if err := scan(tr, user, dev, &d); err != nil {
+						publishStatus(err.Error())
+					}
+				} else {
+					if _, err := dispatch.Scan(user); err != nil {
+						publishStatus(err.Error())
+					}
+				}
 			default:
 			}
 			if hwStatus.ScanSw && time.Since(lastChange) > 5*time.Second {
@@ -521,7 +533,15 @@ func LocalScanner() {
 				tr.LazyPrintf("scan button pressed, scanning")
 				// recover from error backlight color if necessary
 				setBacklightColor(0xFF, 0xFF, 0xFF)
-				if err := scan(tr, dev, &d); err != nil {
+
+				client := proto.NewScanClient(scanConn)
+				resp, err := client.DefaultUser(context.Background(), &proto.DefaultUserRequest{})
+				if err != nil {
+					publishStatus(err.Error())
+					continue
+				}
+
+				if err := scan(tr, resp.User, dev, &d); err != nil {
 					tr.LazyPrintf("scanning failed: %v", err)
 					setBacklightColor(0xFF, 0x00, 0x00)
 					d.Clear()
