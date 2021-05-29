@@ -34,7 +34,6 @@ import (
 	gorilla_context "github.com/gorilla/context"
 	"github.com/gorilla/securecookie"
 	"github.com/gorilla/sessions"
-	"github.com/stapelberg/scan2drive/internal/bundled"
 	"github.com/stapelberg/scan2drive/proto"
 	"golang.org/x/net/context"
 	"golang.org/x/net/trace"
@@ -53,10 +52,6 @@ var (
 	httpListenAddr = flag.String("http_listen_address",
 		":7120",
 		"[host]:port to listen on for RPCs")
-
-	injectAssets = flag.String("inject_assets",
-		"",
-		"Path to the directory containing static assets (JavaScript, images, etc.), e.g. assets/")
 
 	clientSecretPath = flag.String("client_secret_path",
 		"/perm/client_secret.json",
@@ -800,11 +795,6 @@ func main() {
 	flag.Parse()
 
 	gokrazy.WaitForClock()
-	if *injectAssets != "" {
-		if err := bundled.Inject(*injectAssets); err != nil {
-			log.Fatal(err)
-		}
-	}
 
 	mux := newSetupMux()
 
@@ -881,7 +871,7 @@ func main() {
 	log.Printf("Listening on %q (gRPC) and http://%s", *rpcListenAddr, maybePrefixLocalhost(*httpListenAddr))
 
 	http.HandleFunc("/constants.js", constantsHandler)
-	http.HandleFunc("/assets/", assetsDirHandler)
+	http.Handle("/assets/", http.FileServer(http.FS(assetsDir)))
 	// TODO: verify method (POST) in each handler
 	http.HandleFunc("/scans_dir/", scansDirHandler)
 	http.HandleFunc("/oauth", oauthHandler)

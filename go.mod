@@ -1,6 +1,6 @@
 module github.com/stapelberg/scan2drive
 
-go 1.12
+go 1.16
 
 require (
 	cloud.google.com/go v0.60.0 // indirect

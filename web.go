@@ -15,9 +15,9 @@
 package main
 
 import (
+	"embed"
 	"encoding/json"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -32,7 +32,6 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/gorilla/sessions"
-	"github.com/stapelberg/scan2drive/internal/bundled"
 	"github.com/stapelberg/scan2drive/internal/dispatch"
 	"github.com/stapelberg/scan2drive/proto"
 	"github.com/stapelberg/scan2drive/templates"
@@ -253,15 +252,8 @@ func signoutHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func assetsDirHandler(w http.ResponseWriter, r *http.Request) {
-	filename := strings.TrimPrefix(r.URL.Path, "/assets/")
-	a, ok := bundled.Asset(filename)
-	if !ok {
-		http.Error(w, fmt.Sprintf("file %q not found", filename), http.StatusNotFound)
-	} else {
-		io.Copy(w, strings.NewReader(a))
-	}
-}
+//go:embed assets/*.js
+var assetsDir embed.FS
 
 func scansDirHandler(w http.ResponseWriter, r *http.Request) {
 	sub, err := requireAuth(w, r)
