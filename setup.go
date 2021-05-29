@@ -111,7 +111,7 @@ func registerSetupHandlers(mux *setupMux) {
 	} else {
 		log.Printf("Cannot offer a web form for storing the client secret: writing test file failed: %v", err)
 	}
-	mux.setupMux.HandleFunc("/assets/", assetsDirHandler)
+	mux.setupMux.Handle("/assets/", http.FileServer(http.FS(assetsDir)))
 	mux.setupMux.HandleFunc("/setup", func(w http.ResponseWriter, r *http.Request) {
 		clientid := r.FormValue("clientid")
 		clientsecret := r.FormValue("clientsecret")
