@@ -58,15 +58,9 @@ func (p *pushToAirscan) Scan(user string) (string, error) {
 	tr := trace.New("AirScan", p.host)
 	defer tr.Finish()
 
-	client := proto.NewScanClient(scanConn)
-	resp, err := client.DefaultUser(context.Background(), &proto.DefaultUserRequest{})
-	if err != nil {
-		return "", err
-	}
+	tr.LazyPrintf("Starting AirScan at host %s.local for user %s", p.host, user)
 
-	tr.LazyPrintf("Starting AirScan at host %s.local for user %s", p.host, resp.User)
-
-	return scanA(tr, resp.User, p.host)
+	return scanA(tr, user, p.host)
 }
 
 func Airscan() {
