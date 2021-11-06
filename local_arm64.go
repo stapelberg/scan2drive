@@ -512,7 +512,7 @@ func LocalScanner() {
 					tr := trace.New("MQTT", "ScanRequest")
 					defer tr.Finish()
 
-					user := userByFirstName(sr.User)
+					user := userByName(sr.User)
 					if user == "" {
 						publishStatus(fmt.Sprintf("No such user %q", sr.User))
 						return

@@ -642,11 +642,11 @@ func processAllScans() error {
 	return examineScansDir()
 }
 
-func userByFirstName(name string) string {
+func userByName(name string) string {
 	usersMu.RLock()
 	defer usersMu.RUnlock()
 	for sub, state := range users {
-		if strings.Contains(state.Name, name) {
+		if state.Name == name {
 			return sub
 		}
 	}
