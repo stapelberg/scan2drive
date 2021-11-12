@@ -9,3 +9,9 @@ generate:
 
 install:
 	GOARCH=arm64 go install github.com/stapelberg/scan2drive
+
+test:
+	true
+
+run: test
+	go run -mod=mod github.com/stapelberg/scan2drive

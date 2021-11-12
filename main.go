@@ -15,6 +15,7 @@
 package main
 
 import (
+	"crypto/tls"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -35,6 +36,7 @@ import (
 	"github.com/gorilla/securecookie"
 	"github.com/gorilla/sessions"
 	"github.com/stapelberg/scan2drive/proto"
+	"golang.org/x/crypto/acme/autocert"
 	"golang.org/x/net/context"
 	"golang.org/x/net/trace"
 	"golang.org/x/oauth2"
@@ -43,6 +45,8 @@ import (
 	oauth2api "google.golang.org/api/oauth2/v2"
 	"google.golang.org/api/option"
 	"google.golang.org/grpc"
+	"tailscale.com/client/tailscale"
+	"tailscale.com/tsnet"
 )
 
 var (
@@ -354,7 +358,7 @@ func examineScansDir() error {
 	scansMu.Lock()
 	scans = scansNew
 	scansMu.Unlock()
-	log.Printf("scans = %+v\n", scans)
+	//log.Printf("scans = %+v\n", scans)
 	return nil
 }
 
@@ -803,9 +807,18 @@ var mqttPublish chan<- publishRequest
 var mqttScanRequest = make(chan scanRequest, 1)
 
 func main() {
+	tailscaleHostname := flag.String("tailscale_hostname", "scan2drive", "tailscale hostname")
+	tailscaleAllowedUser := flag.String("tailscale_allowed_user", "", "the name of a tailscale user to allow")
 	flag.Parse()
 
 	gokrazy.WaitForClock()
+
+	log.Printf("state dir %s", *stateDir)
+
+	trace.AuthRequest = func(r *http.Request) (bool, bool) {
+		// TODO: verify the source is a private IP address
+		return true, true
+	}
 
 	mux := newSetupMux()
 
@@ -893,13 +906,69 @@ func main() {
 	http.HandleFunc("/scanstatus", scanStatusHandler)
 	http.Handle("/scanicon/", http.StripPrefix("/scanicon/", http.HandlerFunc(scanIconHandler)))
 	http.HandleFunc("/renamescan", renameScanHandler)
-	http.HandleFunc("/", indexHandler)
 
 	// Used by LocalScanner goroutine
 	mqttPublish = MQTT()
 
 	go LocalScanner()
 	go Airscan()
+
+	http.HandleFunc("/", indexHandler)
+
+	// scan2drive.zekjur.net HTTPS listener with autocert
+	go func() {
+		m := &autocert.Manager{
+			Cache:      autocert.DirCache(filepath.Join(*stateDir, "autocert")),
+			Prompt:     autocert.AcceptTOS,
+			HostPolicy: autocert.HostWhitelist("scan2drive.zekjur.net"),
+		}
+		s := &http.Server{
+			Addr:      ":https",
+			TLSConfig: m.TLSConfig(),
+		}
+		if err := s.ListenAndServeTLS("", ""); err != nil {
+			log.Print(err)
+		}
+	}()
+
+	// tailscale listener
+	// TODO: move this into a separate file with a build tag so that it isn’t used by default
+	os.Setenv("TAILSCALE_USE_WIP_CODE", "true")
+	// TODO: comment out this line to avoid having to re-login each time you start this program
+	//os.Setenv("TS_LOGIN", "1")
+	os.Setenv("HOME", filepath.Join(*stateDir, "tailscale"))
+	go func() {
+		s := &tsnet.Server{
+			Hostname: *tailscaleHostname,
+		}
+		log.Printf("starting tailscale listener on hostname %s", *tailscaleHostname)
+		ln, err := s.Listen("tcp", ":443")
+		if err != nil {
+			log.Fatal(err)
+		}
+		ln = tls.NewListener(ln, &tls.Config{
+			GetCertificate: tailscale.GetCertificate,
+		})
+		httpsrv := &http.Server{
+			Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				who, err := tailscale.WhoIs(r.Context(), r.RemoteAddr)
+				if err != nil {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+					return
+				}
+				if who.UserProfile.LoginName != *tailscaleAllowedUser || *tailscaleAllowedUser == "" {
+					err := fmt.Sprintf("you are logged in as %q, but -tailscale_allowed_user flag does not match!", who.UserProfile.LoginName)
+					log.Printf("forbidden: %v (allowed: %q)", err, *tailscaleAllowedUser)
+					http.Error(w, err, http.StatusForbidden)
+					return
+				}
+				http.DefaultServeMux.ServeHTTP(w, r)
+			}),
+		}
+		if err := httpsrv.Serve(ln); err != nil {
+			log.Print(err)
+		}
+	}()
 
 	s := grpc.NewServer(grpc.MaxMsgSize(100 * 1024 * 1024))
 	proto.RegisterScanServer(s, &server{})
