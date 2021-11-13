@@ -10,6 +10,7 @@ require (
 	github.com/gokrazy/gokrazy v0.0.0-20200629220445-6739b590288a
 	github.com/gokrazy/internal v0.0.0-20200626090505-539bb61868de // indirect
 	github.com/google/renameio v0.1.0
+	github.com/google/uuid v1.3.0
 	github.com/gorilla/context v1.1.1
 	github.com/gorilla/securecookie v1.1.1
 	github.com/gorilla/sessions v1.2.0
