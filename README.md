@@ -80,12 +80,12 @@ The state directory (`-state_dir` flag) contains the following files:
 
 First, [install gokrazy](https://gokrazy.org/quickstart.html).
 
-Then, pack the github.com/stapelberg/scan2drive Go package.
+Then, pack the `github.com/stapelberg/scan2drive/cmd/scan2drive` Go package.
 
-As an example, assuming your SD card is accessible as `/dev/sdb`:
+As an example, assuming your SD card is accessible as `/dev/sdx`:
 
 ```
-gokr-packer -overwrite=/dev/sdb github.com/stapelberg/scan2drive
+gokr-packer -overwrite=/dev/sdx github.com/stapelberg/scan2drive/cmd/scan2drive
 ```
 
 Boot your Raspberry Pi 3 from this SD card and connect the Fujitsu

@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>scan2drive</title>
+<meta http-equiv="X-UA-Compatible" content="chrome=1" />
+<meta name="viewport" content="width=device-width, minimum-scale=1.0, initial-scale=1">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:400,300,300italic,400italic,500,500italic,700,700italic">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto+Mono:400,700">
+<link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/0.98.2/css/materialize.min.css">
+<style type="text/css">
+/* workaround for https://github.com/Dogfalo/materialize/issues/1727 */
+.picker {
+  font-size: initial;
+  text-align: initial;
+  line-height: initial;
+  color: initial;
+  position: initial;
+  z-index: initial;
+  -webkit-user-select: initial;
+  -moz-user-select: initial;
+  -ms-user-select: initial;
+  user-select: initial;
+}
+.modal-overlay {
+  z-index: 998 !important;
+}
+#settings-dialog {
+  z-index: 999 !important;
+}
+</style>
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.1/jquery.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/0.98.2/js/materialize.min.js"></script>
+<script type="text/javascript" src="/constants.js"></script>
+<script type="text/javascript" src="/assets/scan2drive.js"></script>
+<style is="custom-style" include="iron-flex iron-flex-alignment">
+body {
+	margin: 0;
+	padding: 0;
+}
+#user-avatar, .user-avatar {
+	border-radius: 50%;
+	height: 32px;
+	width: 32px;
+	margin-left: 0.5em;
+}
+.user-avatar {
+	float: left;
+	margin-right: 0.5em;
+}
+.user-nick {
+	line-height: 32px;
+}
+.user {
+	margin-bottom: 1em;
+	cursor: pointer;
+}
+.user:hover {
+	background-color: #eee;
+}
+.default-user {
+	font-weight: bold;
+}
+.scan-thumb {
+	/* These dimensions are a 600 dpi scan divided by 7. */
+	width: 170px;
+	height: 240px;
+}
+#signout {
+	font-size: 13px;
+	text-decoration: underline;
+	padding: 0;
+	transition: color 0s;
+	background-color: rgb(92, 107, 192);
+	display: inline;
+}
+.status i {
+	margin-right: 0.5em;
+}
+a.btn-large {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+</style>
+</head>
+<body>
+  
+  <nav class="indigo lighten-1" role="navigation">
+    <div class="nav-wrapper container">
+      <a id="logo-container" href="#" class="brand-logo">scan2drive</a>
+      
+      <ul class="right hide-on-med-and-down valign-wrapper">
+	<li><a href="#settings-dialog"><i class="material-icons">settings</i></a></li>
+	<li><a href="#people-dialog"><i class="material-icons">people</i></a></li>
+	<li class="valign-wrapper" style="line-height: 16px; margin-left: 1em">
+	  <div>
+	    <span id="user-name" data-sub="{{ .sub }}">
+	      {{ if .user.LoggedIn }}
+	      {{ .user.Name }}
+	      {{ else }}
+	      Not logged in
+	      {{ end }}
+	    </span><br>
+	    <a href="#" id="signout"
+	       {{ if not .user.LoggedIn }}
+	       style="display: none"
+	       {{ end }}
+	       >Sign out</a>
+	  </div>
+	  <img id="user-avatar"
+	       {{ if .user.LoggedIn }}
+	       src="{{ .user.Picture }}"
+	       {{ else }}
+	       src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNgYAAAAAMAASsJTYQAAAAASUVORK5CYII="
+	       {{ end }}
+	       class="circle responsive-img valign">
+	</li>
+      </ul>
+
+      <ul id="nav-mobile" class="side-nav">
+        <li><a href="#"><i class="material-icons">settings</i></a></li>
+      </ul>
+      <a href="#" data-activates="nav-mobile" class="button-collapse"><i class="material-icons">menu</i></a>
+    </div>
+  </nav>
+
+
+  <div class="fixed-action-btn click-to-toggle"
+       {{ if not $.user.LoggedIn }}
+       style="display: none"
+       {{ end }}
+       >
+    <a class="btn-floating btn-large red waves-effect waves-light">
+      <i class="large material-icons" title="Scan">scanner</i>
+    </a>
+    <ul>
+      {{ range $idx, $src := .scansources }}
+      <li>
+	<a class="btn-floating btn-large green waves-effect waves-light" onclick="scan('{{ $src.Id }}')"
+	   {{ if (ne $src.Name "") }}
+	   title="Scan from {{ $src.Name }}"
+	   {{ end }}
+	   >
+	  {{ if (and (ne $src.Name "") (ne $src.IconURL "")) }}
+	  <img src="{{ $src.IconURL }}" title="Scan from {{ $src.Name }}" alt="Scan from {{ $src.Name }}" width="32" height="32">
+	  {{ else if (ne $src.Name "") }}
+	  <i class="large material-icons" title="Scan from {{ $src.Name }}">scanner</i>
+	  {{ else }}
+	  <i class="large material-icons" title="Scan">scanner</i>
+	  {{ end }}
+	</a>
+      </li>
+      {{ end }}
+    </ul>
+  </div>
+
+  <div id="settings-dialog" class="modal" style="min-width: 50%">
+    <div class="modal-content">
+      <h4>Settings</h4>
+
+      <form action="#">
+	<div class="file-field input-field">
+	  <div class="btn" id="select-drive-folder">
+	    <span>Folder</span>
+	  </div>
+	  <div class="file-path-wrapper">
+	    <input id="drivefolder"
+		   class="file-path validate"
+		   type="text"
+		   placeholder="Google Drive folder"
+		   disabled="disabled"
+		   {{ if ne .user.Folder.Id "" }}
+		   value="{{ .user.Folder.Name }}"
+		   {{ end }}
+		   >
+	  </div>
+	</div>
+      </form>
+    </div>
+    <div class="modal-footer">
+      <a href="#!" class="modal-action modal-close waves-effect waves-green btn-flat">Close</a>
+    </div>
+  </div>
+
+  <div id="people-dialog" class="modal" style="min-width: 50%">
+    <div class="modal-content">
+      <h4>Default scan recipient</h4>
+
+      <p>
+	When pressing the physical scan button, scans should be received by:
+      </p>
+
+      <form action="#">
+	{{ range $u := .users }}
+	<div class="user {{ if eq $.defaultsub $u.Sub }}default-user{{ end }}" data-sub="{{ $u.Sub }}">
+	  <img class="user-avatar" src="{{ $u.PictureURL }}" class="circle responsive-img valign">
+	  <span class="user-nick">{{ $u.FullName }}</span>
+	</div>
+	{{ end }}
+      </form>
+    </div>
+    <div class="modal-footer">
+      <a href="#!" class="modal-action modal-close waves-effect waves-green btn-flat">Close</a>
+    </div>
+  </div>
+
+  <div id="scan-dialog" class="modal" style="min-width: 50%">
+    <div class="modal-content">
+      <h4>Scan</h4>
+
+      <div class="progress">
+	<!-- TODO: make this determinate once the server reports progress -->
+	<div class="indeterminate"></div>
+      </div>
+
+      <span id="scan-progress-status">Scanning pages…</span>
+
+      <form action="#">
+	<div id="scan-name-prefix">
+	  2017-05-20 17:18:00
+	</div>
+	<div class="input-field inline">
+	  <input id="name" type="text">
+	  <label for="name">Name</label>
+	</div>
+	<div class="btn">
+	  <span>Rename scan</span>
+	</div>
+      </form>
+      
+      <!-- TODO: add (zoomable) scan-thumb so that the user can see what the document contains -->
+    </div>
+  </div>
+
+  <div id="content">
+    <div id="signin"
+	 {{ if .user.LoggedIn }}
+	 style="display: none"
+	 {{ end }}
+	 >
+      <p>
+	scan2drive’s purpose is to store scans on Google Drive, so please
+	<div id="my-signin2"></div>
+      </p>
+    </div>
+    <div id="error">
+      <p></p>
+    </div>
+  </div>
+  
+  <div class="container">
+    <div class="section">
+
+{{ range $key := .keys }}
+{{ with $scan := index $.scans $key }}
+      <div class="row">
+        <div class="col s12 m12">
+	  <div class="card horizontal">
+	    <div class="card-stacked">
+              <div class="card-content">
+		<span class="card-title">
+			<!-- TODO: retro-active rename, i.e. make this name clickable and implement a rename handler -->
+			{{ if eq $scan.NewName "" }}
+			{{ $key }}
+			{{ else }}
+			{{ $key }}-{{ $scan.NewName }}
+			{{ end }}
+		</span>
+		<p style="line-height: 24px" class="status valign-wrapper">
+
+		  {{ if (not $scan.Markers.Converted) }}
+		  <i class="material-icons">cloud_queue</i> queued for conversion
+		  {{ else if (or (not $scan.Markers.UploadedOriginals) (not $scan.Markers.UploadedPDF)) }}
+		  <i class="material-icons">cloud_upload</i> uploading
+		  {{ else }}
+		  <i class="material-icons">cloud_done</i> done
+		  {{ end }}
+		  
+		</p>
+              </div>
+              <div class="card-action" style="line-height: 24px">
+		<a href="https://drive.google.com/file/d/{{ $scan.PDFDriveId }}/view"><i class="material-icons left">cloud</i> View in drive</a>
+              </div>
+	    </div>
+	    <div class="card-image">
+	      <img class="scan-thumb" src="scans_dir/{{ $key }}/thumb.png">
+            </div>
+	  </div>
+        </div>
+      </div>
+{{ end }}
+{{ end }}
+    </div>
+  </div>
+
+  <!--  Scripts-->
+  <script type="text/javascript">
+    $(document).ready(function() {
+      $('#settings-dialog').modal();
+      $('#people-dialog').modal();
+      $('#scan-dialog').modal({
+        dismissible: false // cannot be dismissed by clicking outside
+      });
+    });
+  </script>
+  <script src="https://apis.google.com/js/client:platform.js?onload=start" async defer></script>
+  </body>
+</html>

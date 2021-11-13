@@ -1,3 +1,17 @@
+// Copyright 2016 Michael Stapelberg and contributors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // Package httpscaningest implements an HTTP API around the scaningest API.
 //
 // Example Usage
@@ -10,54 +24,18 @@
 package httpscaningest
 
 import (
-	"context"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"path"
 	"strings"
 	"sync"
 
 	"github.com/google/uuid"
+	"github.com/stapelberg/scan2drive/internal/httperr"
+	"github.com/stapelberg/scan2drive/internal/page"
 	"github.com/stapelberg/scan2drive/internal/scaningest"
 )
-
-type httpErr struct {
-	code int
-	err  error
-}
-
-func (h *httpErr) Error() string {
-	return h.err.Error()
-}
-
-func httpError(code int, err error) error {
-	return &httpErr{code, err}
-}
-
-func handleError(h func(http.ResponseWriter, *http.Request) error) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// TODO: r.URL.Path is already processed when we do a nested call to
-		// handleError() for the job handler.
-		path := r.URL.Path // will be modified during request processing
-		err := h(w, r)
-		if err == nil {
-			return
-		}
-		if err == context.Canceled {
-			return // client canceled the request
-		}
-		code := http.StatusInternalServerError
-		unwrapped := err
-		if he, ok := err.(*httpErr); ok {
-			code = he.code
-			unwrapped = he.err
-		}
-		log.Printf("%s: HTTP %d %s", path, code, unwrapped)
-		http.Error(w, unwrapped.Error(), code)
-	})
-}
 
 // shiftPath from
 // https://blog.merovius.de/2017/06/18/how-not-to-use-an-http-router.html:
@@ -84,7 +62,7 @@ func (h *jobHandler) ServeHTTPError(w http.ResponseWriter, r *http.Request) erro
 	switch verb {
 	case "addpage":
 		if got := r.Method; got != "PUT" && got != "POST" {
-			return httpError(
+			return httperr.Error(
 				http.StatusMethodNotAllowed,
 				fmt.Errorf("unexpected HTTP method: got %v, want PUT or POST", got))
 		}
@@ -93,12 +71,14 @@ func (h *jobHandler) ServeHTTPError(w http.ResponseWriter, r *http.Request) erro
 		if err != nil {
 			return err
 		}
-		return h.job.AddPage(b)
+		return h.job.AddPage(page.JPEGPageFromBytes(b))
 
 	case "ingest":
-		return h.job.Ingest()
+		jobId, err := h.job.Ingest()
+		_ = jobId
+		return err
 	}
-	return httpError(
+	return httperr.Error(
 		http.StatusNotFound,
 		fmt.Errorf("verb %q not found", verb))
 }
@@ -118,9 +98,9 @@ func ServeMux(ingester *scaningest.Ingester) *http.ServeMux {
 	}
 	serveMux := http.NewServeMux()
 
-	serveMux.Handle("/ingestjob", handleError(func(w http.ResponseWriter, r *http.Request) error {
+	serveMux.Handle("/ingestjob", httperr.Handle(func(w http.ResponseWriter, r *http.Request) error {
 		if got, want := r.Method, "CREATE"; got != want {
-			return httpError(
+			return httperr.Error(
 				http.StatusMethodNotAllowed,
 				fmt.Errorf("unexpected HTTP method: got %v, want %v", got, want))
 		}
@@ -140,17 +120,17 @@ func ServeMux(ingester *scaningest.Ingester) *http.ServeMux {
 		return nil
 	}))
 
-	serveMux.Handle("/job/", handleError(func(w http.ResponseWriter, r *http.Request) error {
+	serveMux.Handle("/job/", httperr.Handle(func(w http.ResponseWriter, r *http.Request) error {
 		var jobId string
 		jobId, r.URL.Path = shiftPath(strings.TrimPrefix(r.URL.Path, "/job/"))
 		job := getJob(jobId)
 		if job == nil {
-			return httpError(
+			return httperr.Error(
 				http.StatusNotFound,
 				fmt.Errorf("job not found"))
 		}
 		hdl := jobHandler{job: job}
-		httpHdl := handleError(hdl.ServeHTTPError)
+		httpHdl := httperr.Handle(hdl.ServeHTTPError)
 		httpHdl.ServeHTTP(w, r)
 		return nil
 	}))

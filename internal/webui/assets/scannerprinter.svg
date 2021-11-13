@@ -1,0 +1,29 @@
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+<svg xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns="http://www.w3.org/2000/svg" version="1.1" xmlns:cc="http://creativecommons.org/ns#" xmlns:dc="http://purl.org/dc/elements/1.1/" viewBox="0 0 20 20">
+ <metadata>
+  <rdf:RDF>
+   <cc:Work rdf:about="">
+    <dc:format>image/svg+xml</dc:format>
+    <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+    <dc:title/>
+   </cc:Work>
+  </rdf:RDF>
+ </metadata>
+ <g transform="translate(-607.63544,-694.58531)">
+  <g transform="matrix(0.81819677,0,0,0.81819677,553.91837,678.75131)" stroke="#333" stroke-dasharray="none" stroke-miterlimit="4">
+   <g transform="matrix(1,0,0,0.96585221,-18.75,5.5913535)" stroke-width="1.24361777">
+    <g>
+     <rect stroke-linejoin="bevel" style="enable-background:accumulate;color:#000000;" stroke-dasharray="none" fill-rule="nonzero" height="13.652" width="22" stroke="#333" stroke-linecap="square" stroke-miterlimit="4" y="20.96" x="85.625" stroke-width="1.2436" fill="#999"/>
+    </g>
+    <rect stroke-linejoin="bevel" style="enable-background:accumulate;color:#000000;" fill-rule="nonzero" height="7.5512" width="22" stroke-linecap="square" y="27.061" x="85.625" fill="#FFF"/>
+   </g>
+   <rect stroke-linejoin="bevel" style="enable-background:accumulate;color:#000000;" fill-rule="nonzero" height="8.0475" width="14.14" stroke-linecap="square" y="20.574" x="70.805" stroke-width="1.2222" fill="#FFF"/>
+   <path stroke-linejoin="bevel" style="enable-background:accumulate;color:#000000;" d="m106.07,25.82c0,0.87868-0.71231,1.591-1.591,1.591-0.87868,0-1.591-0.71231-1.591-1.591,0-0.87868,0.71231-1.591,1.591-1.591,0.87868,0,1.591,0.71231,1.591,1.591z" fill-rule="nonzero" transform="matrix(1.1702362,0,0,1.1325189,-35.247305,0.62457569)" stroke-linecap="square" stroke-width="1.06165338" fill="#FFF"/>
+   <g transform="matrix(1.2269052,0,0,0.96585221,-40.682118,4.7585523)" stroke-width="1.12274563">
+    <rect stroke-linejoin="bevel" style="enable-background:accumulate;color:#000000;" fill-rule="nonzero" transform="scale(1,-1)" height="8.1907" width="11.841" stroke-linecap="square" y="-39.153" x="90.704" fill="#FFF"/>
+    <path stroke-linejoin="miter" d="m92.387,36.616,8.3085,0" stroke-linecap="butt" fill="none"/>
+    <path stroke-linejoin="miter" d="m92.387,33.866,8.3085,0" stroke-linecap="butt" fill="none"/>
+   </g>
+  </g>
+ </g>
+</svg>
