@@ -190,6 +190,10 @@ func logic() error {
 		"localhost:7120",
 		"[host]:port to listen on for RPCs")
 
+	allowedUsersList := flag.String("allowed_users_list",
+		"",
+		"if non-empty, a comma-separated list of users who are permitted to log in")
+
 	tailscaleHostname := flag.String("tailscale_hostname", "scan2drive", "tailscale hostname")
 	tailscaleAllowedUser := flag.String("tailscale_allowed_user", "", "the name of a tailscale user to allow")
 
@@ -269,7 +273,17 @@ func logic() error {
 		finders = append(finders, fss500.SourceFinder(ingesterForDefault))
 	}
 
-	webuiHandler, oauthConfig, err := webui.Init(*clientSecretPath, lockedUsers, *scansDir, *stateDir, finders, ingesterFor)
+	// email to authorized
+	allowedUsers := make(map[string]bool)
+	for _, email := range strings.Split(*allowedUsersList, ",") {
+		email = strings.TrimSpace(email)
+		if email == "" {
+			continue
+		}
+		allowedUsers[email] = true
+	}
+
+	webuiHandler, oauthConfig, err := webui.Init(*clientSecretPath, lockedUsers, *scansDir, *stateDir, finders, ingesterFor, allowedUsers)
 	if err != nil {
 		return err
 	}

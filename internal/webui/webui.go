@@ -105,7 +105,7 @@ func loadSessionStore(stateDir string) (sessions.Store, error) {
 	return sessions.NewFilesystemStore(sessionsPath, secret), nil
 }
 
-func Init(clientSecretPath string, lockedUsers *user.Locked, scansDir, stateDir string, finders []scan2drive.ScanSourceFinder, ingesterFor func(uid string) *scaningest.Ingester) (http.Handler, *oauth2.Config, error) {
+func Init(clientSecretPath string, lockedUsers *user.Locked, scansDir, stateDir string, finders []scan2drive.ScanSourceFinder, ingesterFor func(uid string) *scaningest.Ingester, allowedUsers map[string]bool) (http.Handler, *oauth2.Config, error) {
 	store, err := loadSessionStore(stateDir)
 	if err != nil {
 		return nil, nil, err
@@ -117,13 +117,14 @@ func Init(clientSecretPath string, lockedUsers *user.Locked, scansDir, stateDir 
 	}
 
 	ui := &UI{
-		lockedUsers: lockedUsers,
-		store:       store,
-		tmpl:        tmpl,
-		scansDir:    scansDir,
-		stateDir:    stateDir,
-		finders:     finders,
-		ingesterFor: ingesterFor,
+		lockedUsers:  lockedUsers,
+		store:        store,
+		tmpl:         tmpl,
+		scansDir:     scansDir,
+		stateDir:     stateDir,
+		finders:      finders,
+		ingesterFor:  ingesterFor,
+		allowedUsers: allowedUsers,
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/constants.js", constantsHandler)
@@ -169,14 +170,15 @@ func Init(clientSecretPath string, lockedUsers *user.Locked, scansDir, stateDir 
 }
 
 type UI struct {
-	lockedUsers *user.Locked
-	store       sessions.Store
-	tmpl        *template.Template
-	scansDir    string
-	stateDir    string
-	oauthConfig *oauth2.Config
-	finders     []scan2drive.ScanSourceFinder
-	ingesterFor func(uid string) *scaningest.Ingester
+	lockedUsers  *user.Locked
+	store        sessions.Store
+	tmpl         *template.Template
+	scansDir     string
+	stateDir     string
+	oauthConfig  *oauth2.Config
+	finders      []scan2drive.ScanSourceFinder
+	ingesterFor  func(uid string) *scaningest.Ingester
+	allowedUsers map[string]bool
 }
 
 func (ui *UI) updateUsers() error {

@@ -36,6 +36,8 @@ import (
 	"github.com/stapelberg/scan2drive/internal/jobqueue"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/jws"
+	oauth2api "google.golang.org/api/oauth2/v2"
+	"google.golang.org/api/option"
 )
 
 const sessionCookieName = "scan2drive"
@@ -185,6 +187,8 @@ func (ui *UI) writeDefault(sub string, isDefault bool) error {
 }
 
 func (ui *UI) oauthHandler(w http.ResponseWriter, r *http.Request) error {
+	ctx := r.Context()
+
 	code, err := io.ReadAll(r.Body)
 	if err != nil {
 		return err
@@ -193,6 +197,25 @@ func (ui *UI) oauthHandler(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
+
+	if len(ui.allowedUsers) == 0 {
+		log.Printf("skipping user validation because -allowed_users_list is not set")
+	} else {
+		httpClient := oauthConfig.Client(ctx, token)
+		osrv, err := oauth2api.NewService(ctx, option.WithHTTPClient(httpClient))
+		if err != nil {
+			return fmt.Errorf("creating oauth2 client: %v", err)
+		}
+		o, err := osrv.Userinfo.Get().Do()
+		if err != nil {
+			return fmt.Errorf("getting userinfo: %v", err)
+		}
+		log.Printf("login request from %q", o.Email)
+		if !ui.allowedUsers[o.Email] {
+			return fmt.Errorf("not listed in -allowed_users_list")
+		}
+	}
+
 	idToken, ok := token.Extra("id_token").(string)
 	if !ok {
 		return fmt.Errorf("id_token is not a string TODO better msg")
