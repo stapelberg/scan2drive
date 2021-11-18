@@ -45,6 +45,10 @@ main author has no time to create an active community around it or accept
 contributions in a timely manner. All support, development and bug fixes are
 strictly best effort.
 
+## Architecture
+
+![](/img/2021-11-14-scan2drive-architecture.svg)
+
 ## Directory structure
 
 The scans directory (`-scans_dir` flag) contains the following files:
