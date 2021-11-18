@@ -3,9 +3,9 @@
 <img src="https://github.com/stapelberg/scan2drive/raw/master/scan2drive.png"
 width="266" align="right" alt="scan2drive screenshot">
 
-scan2drive is a [Raspberry Pi 3](https://www.raspberrypi.org/)-based
-appliance (with a web interface) for scanning, converting and
-uploading physical documents to Google Drive.
+scan2drive is a Go program (with a web interface) for scanning, converting and
+uploading physical documents to Google Drive. The author runs scan2drive as a
+[gokrazy](https://gokrazy.org/) appliance on a Raspberry Pi 4.
 
 During the conversion step, scan2drive skips empty pages and converts the rest
 from multi-megabyte JPEGs into a kilobyte-sized PDF. This allows you to use
