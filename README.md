@@ -45,6 +45,14 @@ main author has no time to create an active community around it or accept
 contributions in a timely manner. All support, development and bug fixes are
 strictly best effort.
 
+## Supported scanners
+
+* scan2drive can scan from **any AirScan-compatible scanner**. This means any
+  scanner that is marketed as compatible with Apple iPhones should work. You can
+  find a list of tested devices at
+  https://github.com/stapelberg/airscan#tested-devices
+* Fujitsu ScanSnap iX500 connected via USB
+
 ## Architecture
 
 ![](/img/2021-11-14-scan2drive-architecture.svg)
