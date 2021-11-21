@@ -413,6 +413,7 @@ func logic() error {
 }
 
 func main() {
+	gokrazyInit()
 	if err := logic(); err != nil {
 		log.Fatal(err)
 	}
