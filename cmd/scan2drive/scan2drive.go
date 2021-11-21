@@ -188,11 +188,19 @@ func logic() error {
 
 	httpListenAddr := flag.String("http_listen_address",
 		"localhost:7120",
-		"[host]:port to listen on for RPCs")
+		"[host]:port to listen on for HTTP requests")
+
+	httpsListenAddr := flag.String("https_listen_address",
+		":https",
+		"[host]:port to listen on for HTTPS requests. This is a no-op unless -tls_autocert_hosts is non-empty.")
+
+	autocertHostList := flag.String("tls_autocert_hosts",
+		"",
+		"If non-empty, a comma-separated list of hostnames to obtain TLS certificates for. If non-empty, a TLS listener will be enabled on -https_listen_address")
 
 	allowedUsersList := flag.String("allowed_users_list",
 		"",
-		"if non-empty, a comma-separated list of users who are permitted to log in")
+		"If non-empty, a comma-separated list of users who are permitted to log in")
 
 	tailscaleHostname := flag.String("tailscale_hostname", "scan2drive", "tailscale hostname")
 	tailscaleAllowedUser := flag.String("tailscale_allowed_user", "", "the name of a tailscale user to allow")
@@ -387,27 +395,35 @@ func logic() error {
 
 	// - TODO(later): tailscale listener
 
-	// scan2drive.zekjur.net HTTPS listener with autocert
-	go func() {
-		hosts := []string{
-			"scan2drive.zekjur.net",
+	if *autocertHostList != "" {
+		// Start HTTPS listener with autocert
+		var hosts []string
+		for _, host := range strings.Split(*autocertHostList, ",") {
+			host = strings.TrimSpace(host)
+			if host == "" {
+				continue
+			}
+			hosts = append(hosts, host)
 		}
-		m := &autocert.Manager{
-			Cache:      autocert.DirCache(filepath.Join(*stateDir, "autocert")),
-			Prompt:     autocert.AcceptTOS,
-			HostPolicy: autocert.HostWhitelist(hosts...),
-		}
-		s := &http.Server{
-			Addr:      ":https",
-			TLSConfig: m.TLSConfig(),
-		}
-		for _, host := range hosts {
-			log.Printf("listening on https://%s", host)
-		}
-		if err := s.ListenAndServeTLS("", ""); err != nil {
-			log.Print(err)
-		}
-	}()
+
+		go func() {
+			m := &autocert.Manager{
+				Cache:      autocert.DirCache(filepath.Join(*stateDir, "autocert")),
+				Prompt:     autocert.AcceptTOS,
+				HostPolicy: autocert.HostWhitelist(hosts...),
+			}
+			s := &http.Server{
+				Addr:      *httpsListenAddr,
+				TLSConfig: m.TLSConfig(),
+			}
+			for _, host := range hosts {
+				log.Printf("listening on https://%s", host)
+			}
+			if err := s.ListenAndServeTLS("", ""); err != nil {
+				log.Print(err)
+			}
+		}()
+	}
 
 	return eg.Wait()
 }
