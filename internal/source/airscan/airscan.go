@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net/http"
 	"strings"
 	"sync"
 	"time"
@@ -41,9 +42,14 @@ import (
 
 type AirscanSource struct {
 	mu      sync.Mutex
+	client  *airscan.Client
 	name    string
 	host    string
 	iconURL string
+}
+
+func (a *AirscanSource) Transport() http.RoundTripper {
+	return a.client.HTTPClient.(*http.Client).Transport
 }
 
 // implements scan2drive.ScanSource
@@ -75,7 +81,7 @@ func (a *AirscanSource) ScanTo(ingester *scaningest.Ingester) (string, error) {
 
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	return scan1(tr, a.host, ingester)
+	return scan1(tr, a.client, ingester)
 }
 
 // NOTE: We currently call out to the generic ProcessScan() implementation,
@@ -86,9 +92,7 @@ func (a *AirscanSource) ScanTo(ingester *scaningest.Ingester) (string, error) {
 // We should investigate whether similar speed-ups are required/achievable
 // with the Raspberry Pi 4 and AirScan.
 
-func scan1(tr trace.Trace, host string, ingester *scaningest.Ingester) (string, error) {
-	cl := airscan.NewClient(host)
-
+func scan1(tr trace.Trace, cl *airscan.Client, ingester *scaningest.Ingester) (string, error) {
 	status, err := cl.ScannerStatus()
 	if err != nil {
 		return "", err
@@ -204,6 +208,7 @@ func SourceFinder() scan2drive.ScanSourceFinder {
 		// TODO: use srv.Text["ty"] if non-empty once
 		// https://github.com/brutella/dnssd/pull/19 was merged
 		sourceFinder.sources[srv.Host] = &AirscanSource{
+			client:  airscan.NewClientForService(&srv),
 			name:    unescapedName,
 			host:    srv.Host,
 			iconURL: srv.Text["representation"],

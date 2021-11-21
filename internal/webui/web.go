@@ -34,6 +34,7 @@ import (
 	"github.com/stapelberg/scan2drive"
 	"github.com/stapelberg/scan2drive/internal/httperr"
 	"github.com/stapelberg/scan2drive/internal/jobqueue"
+	"github.com/stapelberg/scan2drive/internal/source/airscan"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/jws"
 	oauth2api "google.golang.org/api/oauth2/v2"
@@ -482,6 +483,12 @@ func (ui *UI) scanIconHandler(w http.ResponseWriter, r *http.Request) error {
 			http.StatusNotFound,
 			fmt.Errorf("scan source %q not found", srcId))
 	}
+	airscanSource, ok := scanSource.(*airscan.AirscanSource)
+	if !ok {
+		return httperr.Error(
+			http.StatusBadRequest,
+			fmt.Errorf("scan source is of type %T, not airscan", scanSource))
+	}
 
 	// Remove the .local. avahi suffix to go through local DNS, as there is no
 	// avahi on gokrazy (yet?).
@@ -491,7 +498,9 @@ func (ui *UI) scanIconHandler(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	u.Path = path.Dir(u.Path)
-	httputil.NewSingleHostReverseProxy(u).ServeHTTP(w, r)
+	reverseProxy := httputil.NewSingleHostReverseProxy(u)
+	reverseProxy.Transport = airscanSource.Transport()
+	reverseProxy.ServeHTTP(w, r)
 	return nil
 }
 
