@@ -47,30 +47,32 @@ func mqttLoop(mqttScanRequests chan *scan2drive.ScanRequest, requests <-chan Pub
 	opts := mqtt.NewClientOptions().AddBroker(broker)
 	opts.SetClientID("scan2drive")
 	opts.SetConnectRetry(true)
+	opts.OnConnect = func(c mqtt.Client) {
+		tr.LazyPrintf("OnConnect, subscribing to scan2drive/cmd/scan")
+		token := c.Subscribe(
+			"scan2drive/cmd/scan",
+			0, /* qos */
+			func(_ mqtt.Client, m mqtt.Message) {
+				tr.LazyPrintf("message on topic %s: %q", m.Topic(), string(m.Payload()))
+				var sr scan2drive.ScanRequest
+				if err := json.Unmarshal(m.Payload(), &sr); err != nil {
+					log.Printf("error unmarshaling payload: %v", err)
+				}
+				select {
+				case mqttScanRequests <- &sr:
+				default:
+					// Channel full, scan request already pending; drop
+				}
+			})
+		if token.Wait() && token.Error() != nil {
+			tr.LazyPrintf("subscription failed! %v", token.Error())
+		}
+	}
 	mqttClient := mqtt.NewClient(opts)
 	if token := mqttClient.Connect(); token.Wait() && token.Error() != nil {
 		return fmt.Errorf("MQTT connection failed: %v", token.Error())
 	}
 	tr.LazyPrintf("Connected to MQTT broker %s", broker)
-
-	token := mqttClient.Subscribe(
-		"scan2drive/cmd/scan",
-		0, /* qos */
-		func(_ mqtt.Client, m mqtt.Message) {
-			tr.LazyPrintf("message on topic %s: %q", m.Topic(), string(m.Payload()))
-			var sr scan2drive.ScanRequest
-			if err := json.Unmarshal(m.Payload(), &sr); err != nil {
-				log.Printf("error unmarshaling payload: %v", err)
-			}
-			select {
-			case mqttScanRequests <- &sr:
-			default:
-				// Channel full, scan request already pending; drop
-			}
-		})
-	if token.Wait() && token.Error() != nil {
-		return token.Error()
-	}
 
 	for r := range requests {
 		tr.LazyPrintf("publishing on topic %s: %q", r.Topic, r.Payload)
