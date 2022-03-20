@@ -1,6 +1,6 @@
 # scan2drive
 
-<img src="https://github.com/stapelberg/scan2drive/raw/master/scan2drive.png"
+<img src="https://github.com/stapelberg/scan2drive/raw/main/scan2drive.png"
 width="266" align="right" alt="scan2drive screenshot">
 
 scan2drive is a Go program (with a web interface) for scanning, converting and
