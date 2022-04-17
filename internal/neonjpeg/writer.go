@@ -997,6 +997,14 @@ func Encode(w io.Writer, size image.Point, o *Options) (*Encoder, error) {
 }
 
 func (e *Encoder) Flush() error {
+	// Synchronize e.state.savable_state huffman encoder (NEON) with Go.
+	for e.state.savable_state.put_bits > 7 {
+		e.state.savable_state.put_bits -= 8
+		e.writeByte(byte(e.state.savable_state.put_buffer >> e.state.savable_state.put_bits))
+	}
+	e.bits = uint32(e.state.savable_state.put_buffer >> 32)
+	e.nBits = uint32(e.state.savable_state.put_bits)
+
 	// Pad the last byte with 1's.
 	e.emit(0x7f, 7)
 	// Write the End Of Image marker.
