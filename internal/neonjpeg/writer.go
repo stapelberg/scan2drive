@@ -311,6 +311,38 @@ func (e *Encoder) writeDQT() {
 	}
 }
 
+// writeAPP0 writes the APP0 marker.
+func (e *Encoder) writeAPP0() {
+	// FF E0 00 10 4a 46 49 46 00 01 01 00 00 01 00 01 00 00
+	// Marker
+	e.buf[0] = 0xFF
+	e.buf[1] = app0Marker
+	e.write(e.buf[:2])
+	// length of 16 bytes
+	e.buf[0] = 0x00
+	e.buf[1] = 0x10
+	e.write(e.buf[:2])
+	// JFIF\0 Identifier
+	e.write([]byte("JFIF"))
+	e.write([]byte{0x00})
+	// JFIF Version
+	e.buf[0] = 0x01
+	e.buf[1] = 0x01
+	e.write(e.buf[:2])
+
+	e.buf[0] = 0x00 // no Density units
+
+	e.buf[1] = 0x00 // Horizontal pixel density of one
+	e.buf[2] = 0x01 // Horizontal pixel density of one
+
+	e.buf[3] = 0x00 // Vertical pixel density of one
+	e.buf[4] = 0x01 // Vertical pixel density of one
+
+	e.buf[5] = 0x00 // Xthumbnail - Horizontal pixel count of the following embedded RGB thumbnail. aka 0
+	e.buf[6] = 0x00 // Ythumbnail - Vertical pixel count of the following embedded RGB thumbnail. aka also 0
+	e.write(e.buf[:7])
+}
+
 // writeSOF0 writes the Start Of Frame (Baseline) marker.
 func (e *Encoder) writeSOF0(size image.Point, nComponent int) {
 	markerlen := 8 + 3*nComponent
@@ -942,6 +974,8 @@ func Encode(w io.Writer, size image.Point, o *Options) (*Encoder, error) {
 	e.buf[0] = 0xff
 	e.buf[1] = 0xd8
 	e.write(e.buf[:2])
+	// Write the APP0 header (JFIF)
+	e.writeAPP0()
 	// Write the quantization tables.
 	e.writeDQT()
 	// Write the image dimensions.
