@@ -246,20 +246,23 @@ func (e *Encoder) writeByte(b byte) {
 	e.err = e.w.WriteByte(b)
 }
 
-// emit emits the least significant nBits bits of bits to the bit-stream.
-// The precondition is bits < 1<<nBits && nBits <= 16.
+// emit emits the most significant nBits bits of bits to the bit-stream.
+//
+// This implementation differs from the image/jpeg implementation, which emits
+// the least significant bits. Doing it this way matches what libjpeg-turbo
+// does, which makes it easier to synchronize state of the
+// encoder. Performance-wise, both approaches seem to come in roughly the same,
+// but emit() is not in the hot path when using neonjpeg anyway.
 func (e *Encoder) emit(bits, nBits uint32) {
+	bits |= e.bits << nBits
 	nBits += e.nBits
-	bits <<= 32 - nBits
-	bits |= e.bits
 	for nBits >= 8 {
-		b := uint8(bits >> 24)
+		nBits -= 8
+		b := uint8(bits >> nBits)
 		e.writeByte(b)
 		if b == 0xff {
 			e.writeByte(0x00)
 		}
-		bits <<= 8
-		nBits -= 8
 	}
 	e.bits, e.nBits = bits, nBits
 }
