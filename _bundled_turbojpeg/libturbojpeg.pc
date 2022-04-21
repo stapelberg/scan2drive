@@ -1,0 +1,8 @@
+libdir=.
+includedir=.
+
+Name: libturbojpeg
+Description: A SIMD-accelerated JPEG codec that provides the TurboJPEG API
+Version: 2.1.2
+Libs: -L${libdir} -lturbojpeg
+Cflags: -I${includedir}

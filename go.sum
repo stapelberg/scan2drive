@@ -517,6 +517,8 @@ github.com/spf13/viper v1.7.1/go.mod h1:8WkrPz2fc9jxqZNCJI/76HCieCp4Q8HaLFoCha5q
 github.com/ssgreg/nlreturn/v2 v2.1.0/go.mod h1:E/iiPB78hV7Szg2YfRgyIrk1AD6JVMTRkkxBiELzh2I=
 github.com/stapelberg/airscan v0.0.0-20210404065721-9b9f6be23a95 h1:aLogvaGGWOR2I5+/WjdcQ1TymMyL0llD4WQC3cExlAw=
 github.com/stapelberg/airscan v0.0.0-20210404065721-9b9f6be23a95/go.mod h1:yA8OCd9vkLItSqZzeO6Q8nAE1r/oZ0r191jD/bkEn30=
+github.com/stapelberg/turbojpeg v0.0.0-20220419190714-070f3ef58316 h1:KRoje6rEr8J7v9bO1T1zYaBWYwjNOeQOsRu6COLMJEo=
+github.com/stapelberg/turbojpeg v0.0.0-20220419190714-070f3ef58316/go.mod h1:IwUg201pQM4GogTHsdJz6dGR5vrzVBsMeF6l2i8GK0g=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
 github.com/stretchr/objx v0.1.1/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
 github.com/stretchr/objx v0.3.0/go.mod h1:qt09Ya8vawLte6SNmTgCsAVtYtaKzEcn8ATUoHMkEqE=

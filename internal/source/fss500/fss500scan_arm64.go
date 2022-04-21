@@ -23,9 +23,9 @@ import (
 
 	"github.com/stapelberg/scan2drive/internal/fss500"
 	"github.com/stapelberg/scan2drive/internal/fss500/usb"
-	"github.com/stapelberg/scan2drive/internal/neonjpeg"
 	"github.com/stapelberg/scan2drive/internal/page"
 	"github.com/stapelberg/scan2drive/internal/scaningest"
+	"github.com/stapelberg/scan2drive/internal/turbojpeg"
 	"golang.org/x/net/trace"
 )
 
@@ -177,7 +177,7 @@ func scan1(tr trace.Trace, ingester *scaningest.Ingester, dev *usb.Device, inges
 		type pageState struct {
 			buf  *bytes.Buffer
 			cnt  int
-			enc  *neonjpeg.Encoder
+			enc  *turbojpeg.Encoder
 			rest []byte // buffers pixels until 16 full rows
 			ch   chan []byte
 			done chan struct{}
@@ -191,9 +191,8 @@ func scan1(tr trace.Trace, ingester *scaningest.Ingester, dev *usb.Device, inges
 		for side := range []int{front, back} {
 			cnt++
 			var buf bytes.Buffer
-			enc, err := neonjpeg.Encode(&buf, image.Point{4960, 7016}, &neonjpeg.Options{
-				Quality: 75, // like scanimage(1)
-			})
+			const quality = 75 // like scanimage(1)
+			enc, err := turbojpeg.NewEncoder(&buf, 75, 4960, 7016)
 			if err != nil {
 				return err
 			}

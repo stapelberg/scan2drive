@@ -1,0 +1,44 @@
+#!/bin/bash
+
+args=("$@")
+
+# The Go toolchain will call this pkg-config wrapper with one or more
+# libturbojpeg arguments, and either --cflags or --libs. For example:
+#
+# --cflags -- libturbojpeg libturbojpeg libturbojpeg
+# --libs -- libturbojpeg libturbojpeg libturbojpeg
+#
+# Any other invocations are passed on to the system pkg-config.
+
+cflags=0
+libs=0
+while [[ $# -gt 0 ]]; do
+    case $1 in
+	--cflags)
+	    cflags=1
+	    shift
+	    ;;
+	--libs)
+	    libs=1
+	    shift
+	    ;;
+	--)
+	    shift
+	    ;;
+	libturbojpeg)
+	    shift
+	    ;;
+	*)
+	    /usr/bin/pkg-config "${args[@]}"
+	    exit 1
+	    ;;
+    esac
+done
+
+SCRIPTPATH="$( cd -- "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P )"
+if [[ "$cflags" -ne 0 ]]; then
+    echo "-I$SCRIPTPATH"
+fi
+if [[ "$libs" -ne 0 ]]; then
+    echo "-L$SCRIPTPATH -lturbojpeg"
+fi

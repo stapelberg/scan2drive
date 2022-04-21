@@ -107,3 +107,57 @@ supported).
 You should be able to access the gokrazy web interface at the URL
 which `gokr-packer` printed. To access the scan2drive web interface,
 switch to port 7120.
+
+## Building with libjpeg-turbo
+
+[libjpeg-turbo](https://libjpeg-turbo.org/) is a JPEG image codec that uses SIMD
+instructions (Arm Neon in case of the Raspberry Pi) to accelerate baseline JPEG
+compression.
+
+scan2drive can optionally make use of libjpeg-turbo (via the `turbojpeg` build
+tag), but doesn’t include it by default because of the cumbersome setup.
+
+Using libjpeg-turbo on gokrazy requires a few extra setup steps. Because gokrazy
+does not include a C runtime environment (neither libc nor a dynamic linker), we
+need to link scan2drive statically.
+
+1. Install the gcc cross compiler, for example on Debian:
+    ```
+   apt install crossbuild-essential-arm64
+   ```
+
+1. Enable cgo for your gokrazy instance. This means setting the following
+   environment variables when calling `gokr-packer`:
+
+    ```
+    export CC=aarch64-linux-gnu-gcc
+    export CGO_ENABLED=1
+    ```
+
+1. Make available libjpeg-turbo. You have two options for this step.
+
+   * Option A: Use the bundled version in the scan2drive repository by including its
+   `pkg-config` wrapper in your `PATH` environment variable:
+        ```
+        PATH=/home/michael/go/src/github.com/stapelberg/scan2drive/_bundled_turbojpeg:$PATH
+        ```
+
+   * Option B: Install libjpeg-turbo for arm64, for example on Debian:
+        ```
+		dpkg --add-architecture arm64
+		apt update
+	    apt install libturbojpeg0-dev:arm64 libjpeg62-turbo-dev:arm64
+		export PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig
+	    ```
+     Ensure that you have the statically linked version available (`libturbojpeg.a`),
+	 not just the dynamically linked version (`libturbojpeg.so`).
+
+1. Enable static linking and the `turbojpeg` build tag for scan2drive:
+
+    ```
+    mkdir -p buildflags/github.com/stapelberg/scan2drive/cmd/scan2drive
+    echo '-ldflags=-linkmode external -extldflags -static' > buildflags/github.com/stapelberg/scan2drive/cmd/scan2drive/buildflags.txt
+
+    mkdir -p buildtags/github.com/stapelberg/scan2drive/cmd/scan2drive
+    echo turbojpeg > buildtags/github.com/stapelberg/scan2drive/cmd/scan2drive/buildtags.txt
+    ```
