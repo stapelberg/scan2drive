@@ -12,7 +12,7 @@ RUN echo 'APT::Acquire::Retries "5";' > /etc/apt/apt.conf.d/80retry
 
 RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-    crossbuild-essential-arm64 golang-go ca-certificates && \
+    crossbuild-essential-arm64 golang-go ca-certificates git && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /usr/src/scan2drive
