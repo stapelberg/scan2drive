@@ -29,3 +29,15 @@ jobs:
 
     - name: install binaries
       run: go install github.com/stapelberg/scan2drive github.com/stapelberg/scan2drive/cmd/...
+
+    - name: Build Docker container for scan2drive
+      run: |
+        docker build --pull --no-cache --rm -t=scan2drive -f .github/workflows/Dockerfile .
+
+    - name: build scan2drive with bundled libturbojpeg
+      run: |
+        docker run \
+        --init \
+        --volume $PWD:/usr/src/scan2drive \
+        scan2drive \
+        .github/workflows/build-scan2drive.bash
