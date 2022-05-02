@@ -134,24 +134,6 @@ need to link scan2drive statically.
     export CGO_ENABLED=1
     ```
 
-1. Make available libjpeg-turbo. You have two options for this step.
-
-   * Option A: Use the bundled version in the scan2drive repository by including its
-   `pkg-config` wrapper in your `PATH` environment variable:
-        ```
-        PATH=/home/michael/go/src/github.com/stapelberg/scan2drive/_bundled_turbojpeg:$PATH
-        ```
-
-   * Option B: Install libjpeg-turbo for arm64, for example on Debian:
-        ```
-		dpkg --add-architecture arm64
-		apt update
-	    apt install libturbojpeg0-dev:arm64 libjpeg62-turbo-dev:arm64
-		export PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig
-	    ```
-     Ensure that you have the statically linked version available (`libturbojpeg.a`),
-	 not just the dynamically linked version (`libturbojpeg.so`).
-
 1. Enable static linking and the `turbojpeg` build tag for scan2drive:
 
     ```

@@ -519,6 +519,8 @@ github.com/stapelberg/airscan v0.0.0-20210404065721-9b9f6be23a95 h1:aLogvaGGWOR2
 github.com/stapelberg/airscan v0.0.0-20210404065721-9b9f6be23a95/go.mod h1:yA8OCd9vkLItSqZzeO6Q8nAE1r/oZ0r191jD/bkEn30=
 github.com/stapelberg/turbojpeg v0.0.0-20220419190714-070f3ef58316 h1:KRoje6rEr8J7v9bO1T1zYaBWYwjNOeQOsRu6COLMJEo=
 github.com/stapelberg/turbojpeg v0.0.0-20220419190714-070f3ef58316/go.mod h1:IwUg201pQM4GogTHsdJz6dGR5vrzVBsMeF6l2i8GK0g=
+github.com/stapelberg/turbojpeg v0.0.0-20220502190328-108fc19f61ba h1:+Xl7UL/vHJIXUtVqeiefrOxMJzB3ZJmmhFlwjXB+NdY=
+github.com/stapelberg/turbojpeg v0.0.0-20220502190328-108fc19f61ba/go.mod h1:IwUg201pQM4GogTHsdJz6dGR5vrzVBsMeF6l2i8GK0g=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
 github.com/stretchr/objx v0.1.1/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
 github.com/stretchr/objx v0.3.0/go.mod h1:qt09Ya8vawLte6SNmTgCsAVtYtaKzEcn8ATUoHMkEqE=

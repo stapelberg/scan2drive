@@ -32,7 +32,7 @@ require (
 	tailscale.com v1.16.2
 )
 
-require github.com/stapelberg/turbojpeg v0.0.0-20220419190714-070f3ef58316
+require github.com/stapelberg/turbojpeg v0.0.0-20220502190328-108fc19f61ba
 
 require (
 	github.com/alexbrainman/sspi v0.0.0-20210105120005-909beea2cc74 // indirect
