@@ -58,10 +58,20 @@ body {
 You’re seeing this page because the OAuth client secret could not be read from <code>{{ .ClientSecretPath }}</code> (configured via the <code>-client_secret_path</code> flag).
 </p>
 <ol>
-<li>Use <a href="https://console.developers.google.com/start/api?id=drive">Google’s wizard</a> to create a new cloud project and turn on the Drive API.</li>
+<li>Use <a href="https://console.developers.google.com/start/api?id=drive">Google’s wizard</a> to create a new cloud project and enable the Google Drive API.</li>
 <li>On the <strong>Add credentials to your project</strong> page, click the Cancel button.</li>
-<li>At the top of the page, select the <strong>OAuth consent screen</strong> tab. Select an <strong>Email address</strong>, enter a <strong>Product name</strong>, and click the <strong>Save</strong> button.</li>
-<li>Select the <strong>Credentials</strong> tab, click the <strong>Create credentials</strong> button and select <strong>OAuth client ID</strong>.</li>
+<li>Navigate to <strong>APIs and services</strong> → <strong>OAuth consent screen</strong>. Enter an <strong>App name</strong>, a <strong>User support email</strong>, and a <strong>Developer email</strong>, then click the <strong>Save and continue</strong> button.</li>
+<li>In the <strong>Scopes</strong> step, click <strong>Add or remove scopes</strong> and select:
+  <ol>
+    <li><code>openid</code></li>
+    <li><code>auth/userinfo/email</code></li>
+    <li><code>auth/userinfo/profile</code></li>
+    <li><code>auth/drive.file</code></li>
+  </ol>
+</li>
+<li>After completing the form, click the <strong>Publishing status</strong> → <strong>Testing</strong> → <strong>Publish app</strong> button.</li>
+
+<li>Navigate to <strong>APIs and services</strong> → <strong>Credentials</strong>, click the <strong>Create credentials</strong> button and select <strong>OAuth client ID</strong>.</li>
 <li>Select the application type <strong>Web application</strong>, enter the name “scan2drive”, add the URLs under which you are going to access scan2drive to <strong>Authorized JavaScript origins</strong> (e.g. <code>http://localhost:7120</code> and <code>http://scan2drive.lan:7120</code>), and click the <strong>Create</strong> button.</li>
 {{ if .CanWriteClientSecret }}
 <li>Copy &amp; paste the values into this form:
