@@ -59,7 +59,7 @@ func shiftPath(p string) (head, tail string) {
 }
 
 func constantsHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Type", "text/javascript")
 	fmt.Fprintf(w, `var clientID = "%s";`, oauthConfig.ClientID)
 }
 
