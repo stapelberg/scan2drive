@@ -114,7 +114,7 @@ a.btn-large {
 	       {{ else }}
 	       src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNgYAAAAAMAASsJTYQAAAAASUVORK5CYII="
 	       {{ end }}
-	       class="circle responsive-img valign">
+	       class="circle responsive-img valign" referrerpolicy="no-referrer">
 	</li>
       </ul>
 
@@ -194,7 +194,7 @@ a.btn-large {
       <form action="#">
 	{{ range $u := .users }}
 	<div class="user {{ if eq $.defaultsub $u.Sub }}default-user{{ end }}" data-sub="{{ $u.Sub }}">
-	  <img class="user-avatar" src="{{ $u.PictureURL }}" class="circle responsive-img valign">
+	  <img class="user-avatar" src="{{ $u.PictureURL }}" class="circle responsive-img valign" referrerpolicy="no-referrer">
 	  <span class="user-nick">{{ $u.FullName }}</span>
 	</div>
 	{{ end }}
