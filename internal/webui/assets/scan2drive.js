@@ -244,6 +244,7 @@ function createPicker() {
         .setIncludeFolders(true)
         .setMimeTypes('application/vnd.google-apps.folder')
         .setMode(google.picker.DocsViewMode.LIST)
+        .setOwnedByMe(true)
         .setSelectFolderEnabled(true);
 
     var picker = new google.picker.PickerBuilder()
