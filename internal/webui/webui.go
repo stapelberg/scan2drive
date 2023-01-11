@@ -25,6 +25,7 @@ import (
 	"net/http/pprof"
 	"os"
 	"path/filepath"
+	"strings"
 
 	gorilla_context "github.com/gorilla/context"
 	"github.com/gorilla/securecookie"
@@ -42,7 +43,7 @@ var oauthConfig *oauth2.Config
 
 // oauthConfigFromJSON is like google.ConfigFromJSON, but overrides the
 // RedirectURIs key which cannot be set to “postmessage” in the web interface.
-func oauthConfigFromJSON(jsonKey []byte) (*oauth2.Config, error) {
+func oauthConfigFromJSON(jsonKey []byte, baseURL string) (*oauth2.Config, error) {
 	type cred struct {
 		ClientID     string   `json:"client_id"`
 		ClientSecret string   `json:"client_secret"`
@@ -70,7 +71,7 @@ func oauthConfigFromJSON(jsonKey []byte) (*oauth2.Config, error) {
 	return &oauth2.Config{
 		ClientID:     c.ClientID,
 		ClientSecret: c.ClientSecret,
-		RedirectURL:  "postmessage",
+		RedirectURL:  baseURL + "/oauth",
 		Scopes:       []string{drive.DriveScope, "profile", "email"},
 		Endpoint: oauth2.Endpoint{
 			AuthURL:  c.AuthURI,
@@ -105,8 +106,22 @@ func loadSessionStore(stateDir string) (sessions.Store, error) {
 	return sessions.NewFilesystemStore(sessionsPath, secret), nil
 }
 
-func Init(clientSecretPath string, lockedUsers *user.Locked, scansDir, stateDir string, finders []scan2drive.ScanSourceFinder, ingesterFor func(uid string) *scaningest.Ingester, allowedUsers map[string]bool) (http.Handler, *oauth2.Config, error) {
-	store, err := loadSessionStore(stateDir)
+type Config struct {
+	ClientSecretPath string
+	LockedUsers      *user.Locked
+	ScansDir         string
+	StateDir         string
+	Finders          []scan2drive.ScanSourceFinder
+	IngesterFor      func(uid string) *scaningest.Ingester
+	AllowedUsers     map[string]bool
+
+	// ListenURLs contains the base URLs of all configured listeners,
+	// e.g. ["https://scan2drive.zekjur.net", "http://scan2drive.lan:7120"]
+	ListenURLs []string
+}
+
+func Init(cfg *Config) (http.Handler, *oauth2.Config, error) {
+	store, err := loadSessionStore(cfg.StateDir)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -117,14 +132,14 @@ func Init(clientSecretPath string, lockedUsers *user.Locked, scansDir, stateDir 
 	}
 
 	ui := &UI{
-		lockedUsers:  lockedUsers,
+		lockedUsers:  cfg.LockedUsers,
 		store:        store,
 		tmpl:         tmpl,
-		scansDir:     scansDir,
-		stateDir:     stateDir,
-		finders:      finders,
-		ingesterFor:  ingesterFor,
-		allowedUsers: allowedUsers,
+		scansDir:     cfg.ScansDir,
+		stateDir:     cfg.StateDir,
+		finders:      cfg.Finders,
+		ingesterFor:  cfg.IngesterFor,
+		allowedUsers: cfg.AllowedUsers,
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/constants.js", constantsHandler)
@@ -152,16 +167,16 @@ func Init(clientSecretPath string, lockedUsers *user.Locked, scansDir, stateDir 
 	mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
 	mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
 
-	b, err := ioutil.ReadFile(clientSecretPath)
+	b, err := ioutil.ReadFile(cfg.ClientSecretPath)
 	if os.IsNotExist(err) {
-		handler, err := setupHandlerMux(clientSecretPath)
+		handler, err := setupHandlerMux(cfg.ClientSecretPath)
 		return handler, nil, err
 	}
 	if err != nil {
 		return nil, nil, fmt.Errorf("Unable to read client secret file: %v", err)
 	}
 
-	oauthConfig, err = oauthConfigFromJSON(b)
+	oauthConfig, err = oauthConfigFromJSON(b, strings.TrimSuffix(cfg.ListenURLs[0], "/"))
 	if err != nil {
 		return nil, nil, fmt.Errorf("unable to parse client secret file to config: %v", err)
 	}

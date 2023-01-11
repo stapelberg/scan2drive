@@ -223,9 +223,8 @@ func logic() error {
 		job  *jobqueue.Job
 	}
 	workJobs := make(chan workJob)
-	var eg errgroup.Group
+	eg, ctx := errgroup.WithContext(context.Background())
 	eg.Go(func() error {
-		ctx := context.Background()
 		for workJob := range workJobs {
 			if err := processScan(ctx, workJob.user, workJob.job); err != nil {
 				log.Printf("job %v failed: %v", workJob.job.Id(), err)
@@ -291,7 +290,101 @@ func logic() error {
 		allowedUsers[email] = true
 	}
 
-	webuiHandler, oauthConfig, err := webui.Init(*clientSecretPath, lockedUsers, *scansDir, *stateDir, finders, ingesterFor, allowedUsers)
+	var listenURLs []string
+
+	type serveFunc struct {
+		serve    func() error
+		shutdown func() error
+	}
+	var serveFuncs []serveFunc
+
+	if *autocertHostList != "" {
+		// Start HTTPS listener with autocert
+		var hosts []string
+		for _, host := range strings.Split(*autocertHostList, ",") {
+			host = strings.TrimSpace(host)
+			if host == "" {
+				continue
+			}
+			hosts = append(hosts, host)
+		}
+
+		m := &autocert.Manager{
+			Cache:      autocert.DirCache(filepath.Join(*stateDir, "autocert")),
+			Prompt:     autocert.AcceptTOS,
+			HostPolicy: autocert.HostWhitelist(hosts...),
+		}
+		s := &http.Server{
+			Addr:      *httpsListenAddr,
+			TLSConfig: m.TLSConfig(),
+		}
+		for _, host := range hosts {
+			log.Printf("listening on https://%s", host)
+			listenURLs = append(listenURLs, "https://"+host)
+		}
+
+		ln, err := net.Listen("tcp", s.Addr)
+		if err != nil {
+			return err
+		}
+		serveFuncs = append(serveFuncs, serveFunc{
+			serve: func() error {
+				defer ln.Close()
+
+				return s.ServeTLS(ln, "", "")
+			},
+			shutdown: func() error {
+				timeout, canc := context.WithTimeout(context.Background(), 250*time.Millisecond)
+				defer canc()
+				return s.Shutdown(timeout)
+			},
+		})
+	}
+
+	// HTTP listener (local network)
+	ln, err := net.Listen("tcp", *httpListenAddr)
+	if err != nil {
+		return err
+	}
+	addr := ln.Addr().String()
+	if host, port, err := net.SplitHostPort(addr); err == nil {
+		if ip := net.ParseIP(host); ip != nil && ip.IsLoopback() {
+			addr = "localhost"
+			if port != "" {
+				addr += ":" + port
+			}
+		}
+	} else if strings.HasPrefix(addr, "[::]") {
+		host, _ := os.Hostname()
+		if host == "" {
+			host = "localhost"
+		}
+		addr = host + strings.TrimPrefix(addr, "[::]")
+	}
+	log.Printf("listening on http://%s", addr)
+	listenURLs = append(listenURLs, "http://"+addr)
+	serveFuncs = append(serveFuncs, serveFunc{
+		serve: func() error {
+			return http.Serve(ln, nil)
+		},
+		shutdown: func() error {
+			// TODO: Shutdown()
+			return nil
+		},
+	})
+
+	// - TODO(later): tailscale listener
+
+	webuiHandler, oauthConfig, err := webui.Init(&webui.Config{
+		ClientSecretPath: *clientSecretPath,
+		LockedUsers:      lockedUsers,
+		ScansDir:         *scansDir,
+		StateDir:         *stateDir,
+		Finders:          finders,
+		IngesterFor:      ingesterFor,
+		AllowedUsers:     allowedUsers,
+		ListenURLs:       listenURLs,
+	})
 	if err != nil {
 		return err
 	}
@@ -375,54 +468,23 @@ func logic() error {
 		return false, false
 	}
 
-	// HTTP listener (local network)
-	ln, err := net.Listen("tcp", *httpListenAddr)
-	if err != nil {
-		return err
-	}
-	addr := ln.Addr().String()
-	if strings.HasPrefix(addr, "[::]") {
-		host, _ := os.Hostname()
-		if host == "" {
-			host = "localhost"
-		}
-		addr = host + strings.TrimPrefix(addr, "[::]")
-	}
-	log.Printf("listening on http://%s", addr)
-	go func() {
-		log.Print(http.Serve(ln, nil))
-	}()
-
-	// - TODO(later): tailscale listener
-
-	if *autocertHostList != "" {
-		// Start HTTPS listener with autocert
-		var hosts []string
-		for _, host := range strings.Split(*autocertHostList, ",") {
-			host = strings.TrimSpace(host)
-			if host == "" {
-				continue
+	for _, sf := range serveFuncs {
+		sf := sf // copy
+		eg.Go(func() error {
+			errC := make(chan error)
+			go func() {
+				errC <- sf.serve()
+			}()
+			select {
+			case err := <-errC:
+				return err
+			case <-ctx.Done():
+				if err := sf.shutdown(); err != nil {
+					log.Printf("shutting down listener: %v", err)
+				}
+				return ctx.Err()
 			}
-			hosts = append(hosts, host)
-		}
-
-		go func() {
-			m := &autocert.Manager{
-				Cache:      autocert.DirCache(filepath.Join(*stateDir, "autocert")),
-				Prompt:     autocert.AcceptTOS,
-				HostPolicy: autocert.HostWhitelist(hosts...),
-			}
-			s := &http.Server{
-				Addr:      *httpsListenAddr,
-				TLSConfig: m.TLSConfig(),
-			}
-			for _, host := range hosts {
-				log.Printf("listening on https://%s", host)
-			}
-			if err := s.ListenAndServeTLS("", ""); err != nil {
-				log.Print(err)
-			}
-		}()
+		})
 	}
 
 	return eg.Wait()
