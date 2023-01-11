@@ -14,13 +14,13 @@
 
 // Package httpscaningest implements an HTTP API around the scaningest API.
 //
-// Example Usage
+// # Example Usage
 //
 // You can use this API with curl on the command line like so:
 //
-//   jobid=$(curl -s -X CREATE http://localhost:7120/ingestjob | jq -r .job)
-//   curl --request POST --data-binary "@internal/neonjpeg/testdata/page2.jpg" http://localhost:7120/job/$jobid/addpage
-//   curl --request POST http://localhost:7120/job/$jobid/ingest
+//	jobid=$(curl -s -X CREATE http://localhost:7120/ingestjob | jq -r .job)
+//	curl --request POST --data-binary "@internal/neonjpeg/testdata/page2.jpg" http://localhost:7120/job/$jobid/addpage
+//	curl --request POST http://localhost:7120/job/$jobid/ingest
 package httpscaningest
 
 import (
