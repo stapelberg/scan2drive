@@ -142,7 +142,7 @@ func Init(cfg *Config) (http.Handler, *oauth2.Config, error) {
 		allowedUsers: cfg.AllowedUsers,
 	}
 	mux := http.NewServeMux()
-	mux.HandleFunc("/constants.js", constantsHandler)
+	mux.Handle("/constants.js", httperr.Handle(ui.constantsHandler))
 	mux.Handle("/assets/", http.FileServer(http.FS(assetsDir)))
 	// TODO: verify method (POST) in each handler
 	mux.HandleFunc("/scans_dir/", ui.scansDirHandler)

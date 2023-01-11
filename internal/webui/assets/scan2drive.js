@@ -1,6 +1,7 @@
 // vim:ts=4:sw=4:et
 // Documentation references:
 // https://developers.google.com/identity/sign-in/web/reference
+// later superseded by: https://developers.google.com/identity/oauth2/web/guides/migration-to-gis#authorization-code-flow
 // https://developers.google.com/picker/docs/reference
 
 function httpErrorToToast(jqXHR, prefix) {
@@ -9,81 +10,64 @@ function httpErrorToToast(jqXHR, prefix) {
     console.log('error: prefix', prefix, ', summary', summary);
 }
 
+// https://developers.google.com/identity/oauth2/web/guides/overview says:
+//
+// To support a clear separation of authentication and authorization moments,
+// simultaneously signing a user in to your app and to their Google Account
+// while also issuing an access token is no longer supported. Previously,
+// requesting an access token also signed users into their Google Account and
+// returned a JWT ID token credential for user authentication.
+
+// We use the OAuth 2.0 authorization code flow:
+// https://developers.google.com/identity/oauth2/web/guides/use-code-model
+
+var gsiClient;
+var accessToken;
+
+function initGSI() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const errorMsg = urlParams.get('error');
+    if (errorMsg !== undefined) {
+	Materialize.toast(errorMsg, 5000, 'red');
+    }
+
+    accessToken = $('#user-name').attr('data-accesstoken');
+
+    gsiClient = google.accounts.oauth2.initCodeClient({
+        client_id: clientID,
+        // The “profile” and “email” scope used to be automatically be
+        // requested, but that is no longer the case after Google migrated to
+        // Google Identity Services.
+        //
+        // See also https://developers.google.com/drive/api/v2/about-auth
+        scope: 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email openid',
+        ux_mode: 'redirect',
+        redirect_uri: redirectURL, // from constants.js
+        state: XSRFToken, // from constants.js
+    });
+}
+
+function getAuthCode() {
+    gsiClient.requestCode();
+}
+
 // start is called once the Google APIs were loaded
 function start() {
-    console.log('start');
-
-    gapi.load('auth2', function() {
-        var auth2 = gapi.auth2.init({
-	    client_id: clientID,
-	    // The “profile” and “email” scope are always requested.
-	    // See also https://developers.google.com/drive/api/v2/about-auth
-	    scope: 'https://www.googleapis.com/auth/drive.file',
-        });
-        auth2.then(function() {
-	    user = auth2.currentUser.get();
-	    var sub = $('#user-name').attr('data-sub');
-	    // If sub does not match the user id, we are logged in in the
-	    // browser, but not on the server side (e.g. because sessions were
-	    // deleted).
-	    if (auth2.isSignedIn.get() && user.getId() === sub) {
-		console.log('logged in');
-                $('#user-avatar').attr('src', user.getBasicProfile().getImageUrl());
-                $('#user-name').text(user.getBasicProfile().getName());
-                $('.fixed-action-btn').show();
-                $('#signin').hide();
-                $('#signout').show();
-                $('#settings-button').show();
-                // TODO: open settings button in case drive folder is not configured
-
-	    } else {
-		console.log('auth2 loaded, but user not logged in');
-		gapi.signin2.render('my-signin2', {
-		    'scope': 'profile email',
-		    'width': 240,
-		    'height': 50,
-		    'longtitle': true,
-		    'theme': 'dark',
-		    'onsuccess': function(){ console.log('success'); },
-		    'onfailure': function() { console.log('failure'); }
-		});
-	    }
-        }, function(err) {
-	    var errorp = $('#error p');
-	    errorp.text('Error ' + err.error + ': ' + err.details);
-	    console.log('OAuth2 error', err);
-        });
-    });
-
     gapi.load('picker', function() {});
 
-    $('#signinButton').click(function() {
-	var auth2 = gapi.auth2.getAuthInstance();
-        auth2.grantOfflineAccess({'redirect_uri': 'postmessage'}).then(signInCallback);
-    });
-
     $('#signout').click(function(ev) {
-        var auth2 = gapi.auth2.getAuthInstance();
-        auth2.signOut().then(function() {
-            $.ajax({
-                type: 'POST',
-                url: '/signout',
-                success: function(result) {
-                    // Reload the page.
-                    window.location.href = window.location.origin;
-                },
-		error: function(jqXHR, textStatus, errorThrown) {
-		    httpErrorToToast(jqXHR, 'sign out failed');
-		},
-            });
+        $.ajax({
+            type: 'POST',
+            url: '/signout',
+            success: function(result) {
+                // Reload the page.
+                window.location.href = window.location.origin;
+            },
+	    error: function(jqXHR, textStatus, errorThrown) {
+		httpErrorToToast(jqXHR, 'sign out failed');
+	    },
         });
-        ev.preventDefault();
-    });
 
-    // TODO: #signin keypress
-    $('#signin').click(function(ev) {
-	var auth2 = gapi.auth2.getAuthInstance();
-        auth2.grantOfflineAccess({'redirect_uri': 'postmessage'}).then(signInCallback);
         ev.preventDefault();
     });
 
@@ -233,9 +217,7 @@ function pickerCallback(data) {
 }
 
 function createPicker() {
-    var user = gapi.auth2.getAuthInstance().currentUser.get();
-
-    if (!user) {
+    if (accessToken === undefined) {
         // The picker requires an OAuth token.
         return;
     }
@@ -250,34 +232,7 @@ function createPicker() {
     var picker = new google.picker.PickerBuilder()
         .addView(docsView)
         .setCallback(pickerCallback)
-        .setOAuthToken(user.getAuthResponse().access_token)
+        .setOAuthToken(accessToken)
         .build();
     picker.setVisible(true);
-}
-
-function signInCallback(authResult) {
-    if (authResult['code']) {
-        // TODO: progress indicator, writing to disk and examining scans could take a while.
-        $.ajax({
-            type: 'POST',
-            url: '/oauth',
-            contentType: 'application/octet-stream; charset=utf-8',
-            success: function(result) {
-                // Reload the page.
-                window.location.href = window.location.origin;
-            },
-            error: function(jqXHR, textStatus, errorThrown) {
-		if (jqXHR.status == 500) {
-                    $('#error p').text('OAuth error: ' + jqXHR.responseText + '. Try revoking access on https://security.google.com/settings/u/0/security/permissions, then retry');
-		} else {
-                    $('#error p').text('Unknown OAuth error: ' + errorThrown);
-                }
-            },
-            processData: false,
-            data: authResult['code'],
-        });
-    } else {
-        console.log('sth went wrong :|', authResult);
-        // TODO: trigger logout, without server-side auth we are screwed
-    }
 }

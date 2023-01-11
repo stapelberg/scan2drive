@@ -17,6 +17,7 @@ package webui
 import (
 	"bytes"
 	"embed"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -31,12 +32,12 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/gorilla/securecookie"
 	"github.com/stapelberg/scan2drive"
 	"github.com/stapelberg/scan2drive/internal/httperr"
 	"github.com/stapelberg/scan2drive/internal/jobqueue"
 	"github.com/stapelberg/scan2drive/internal/source/airscan"
 	"golang.org/x/oauth2"
-	"golang.org/x/oauth2/jws"
 	oauth2api "google.golang.org/api/oauth2/v2"
 	"google.golang.org/api/option"
 )
@@ -58,9 +59,30 @@ func shiftPath(p string) (head, tail string) {
 	return p[1:i], p[i:]
 }
 
-func constantsHandler(w http.ResponseWriter, r *http.Request) {
+func genXSRFToken() string {
+	return base64.StdEncoding.EncodeToString(securecookie.GenerateRandomKey(32))
+}
+
+func (ui *UI) constantsHandler(w http.ResponseWriter, r *http.Request) error {
+	session, err := ui.store.Get(r, sessionCookieName)
+	if err != nil {
+		return err
+	}
+
+	xsrftoken, ok := session.Values["xsrftoken"].(string)
+	if !ok {
+		xsrftoken = genXSRFToken()
+		session.Values["xsrftoken"] = xsrftoken
+		if err := session.Save(r, w); err != nil {
+			return err
+		}
+	}
+
 	w.Header().Set("Content-Type", "text/javascript")
-	fmt.Fprintf(w, `var clientID = "%s";`, oauthConfig.ClientID)
+	fmt.Fprintf(w, "var clientID = %q;\n", oauthConfig.ClientID)
+	fmt.Fprintf(w, "var redirectURL = %q;\n", oauthConfig.RedirectURL)
+	fmt.Fprintf(w, "var XSRFToken = %q;\n", xsrftoken)
+	return nil
 }
 
 func (ui *UI) indexHandler(w http.ResponseWriter, r *http.Request) {
@@ -77,10 +99,12 @@ func (ui *UI) indexHandler(w http.ResponseWriter, r *http.Request) {
 	var scans map[string]*jobqueue.Job
 	sub, _ := session.Values["sub"].(string)
 	account := ui.lockedUsers.User(sub)
+	accessToken := ""
 	if !account.LoggedIn() {
 		sub = ""
 		account = nil
 	} else {
+		accessToken = account.Token.AccessToken
 		var err error
 		scans, err = account.Queue.Scans()
 		if err != nil {
@@ -147,6 +171,8 @@ func (ui *UI) indexHandler(w http.ResponseWriter, r *http.Request) {
 		"users":       tusers,
 		"defaultsub":  defaultSub,
 		"scansources": scanSources,
+		"clientid":    oauthConfig.ClientID,
+		"accesstoken": accessToken,
 	})
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -187,49 +213,82 @@ func (ui *UI) writeDefault(sub string, isDefault bool) error {
 	return err
 }
 
+func redirectToIndexWithError(w http.ResponseWriter, r *http.Request, errorMsg string) {
+	q := url.Values{}
+	q.Set("error", errorMsg)
+	target := url.URL{
+		Path:     "/",
+		RawQuery: q.Encode(),
+	}
+	http.Redirect(w, r, target.String(), http.StatusFound)
+}
+
 func (ui *UI) oauthHandler(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
 
-	code, err := io.ReadAll(r.Body)
+	session, err := ui.store.Get(r, sessionCookieName)
 	if err != nil {
 		return err
 	}
-	token, err := oauthConfig.Exchange(oauth2.NoContext, string(code))
+
+	xsrftoken, ok := session.Values["xsrftoken"].(string)
+	if !ok {
+		return fmt.Errorf("xsrftoken not found in session")
+	}
+
+	if msg := r.FormValue("error"); msg != "" {
+		redirectToIndexWithError(w, r, "OAuth error: "+msg)
+		return nil
+	}
+
+	// Because we directly authorize the user (as opposed to first logging in
+	// the user, and then authorizing at a later point), Google’s consent dialog
+	// shows a checkbox next to the drive.file scope, allowing the user to grant
+	// login permission, but no drive.file permission. In such a case, throw an
+	// error here to make the user log in again.
+	if !strings.Contains(r.FormValue("scope"), "https://www.googleapis.com/auth/drive.file") {
+		redirectToIndexWithError(w, r, "OAuth error: scope does not contain drive.file. sign in again and tick the checkbox")
+		return nil
+	}
+
+	if state := r.FormValue("state"); state != xsrftoken {
+		return fmt.Errorf("XSRF token mismatch")
+	}
+
+	code := r.FormValue("code")
+	if code == "" {
+		return fmt.Errorf("empty code parameter")
+	}
+
+	token, err := oauthConfig.Exchange(ctx, string(code))
 	if err != nil {
 		return err
+	}
+
+	httpClient := oauthConfig.Client(ctx, token)
+	osrv, err := oauth2api.NewService(ctx, option.WithHTTPClient(httpClient))
+	if err != nil {
+		return fmt.Errorf("creating oauth2 client: %v", err)
+	}
+	userinfo, err := osrv.Userinfo.Get().Do()
+	if err != nil {
+		return fmt.Errorf("getting userinfo: %v", err)
+	}
+	sub := userinfo.Id
+	if sub == "" {
+		return fmt.Errorf("oauth2 error: userinfo.Id unexpectedly empty?!")
 	}
 
 	if len(ui.allowedUsers) == 0 {
 		log.Printf("skipping user validation because -allowed_users_list is not set")
 	} else {
-		httpClient := oauthConfig.Client(ctx, token)
-		osrv, err := oauth2api.NewService(ctx, option.WithHTTPClient(httpClient))
-		if err != nil {
-			return fmt.Errorf("creating oauth2 client: %v", err)
-		}
-		o, err := osrv.Userinfo.Get().Do()
-		if err != nil {
-			return fmt.Errorf("getting userinfo: %v", err)
-		}
-		log.Printf("login request from %q", o.Email)
-		if !ui.allowedUsers[o.Email] {
+		log.Printf("login request from %q", userinfo.Email)
+		if !ui.allowedUsers[userinfo.Email] {
 			return fmt.Errorf("not listed in -allowed_users_list")
 		}
 	}
 
-	idToken, ok := token.Extra("id_token").(string)
-	if !ok {
-		return fmt.Errorf("id_token is not a string TODO better msg")
-	}
-	claimset, err := jws.Decode(idToken)
-	if err != nil {
-		return err
-	}
-	session, err := ui.store.Get(r, sessionCookieName)
-	if err != nil {
-		return err
-	}
-	session.Values["sub"] = claimset.Sub
+	session.Values["sub"] = sub
 	if err := session.Save(r, w); err != nil {
 		return err
 	}
@@ -237,19 +296,22 @@ func (ui *UI) oauthHandler(w http.ResponseWriter, r *http.Request) error {
 		// Only on the first login, we get a RefreshToken. All subsequent
 		// logins will just have an AccessToken. In order to force a first
 		// login, the user needs to revoke the scan2drive permissions on
-		// https://myaccount.google.com/u/0/permissions
-		account := ui.lockedUsers.User(claimset.Sub)
+		// https://myaccount.google.com/permissions
+		account := ui.lockedUsers.User(sub)
 		if account == nil || account.Token == nil {
-			return fmt.Errorf("Could not merge old RefreshToken into new token: no old refresh token found. If you re-installed scan2drive, revoke the permission on https://security.google.com/settings/u/0/security/permissions ")
+			return fmt.Errorf("Could not merge old RefreshToken into new token: no old refresh token found. If you re-installed scan2drive, revoke the permission on https://myaccount.google.com/permissions")
 		}
 		token.RefreshToken = account.Token.RefreshToken
 	}
-	if err := ui.writeToken(claimset.Sub, token); err != nil {
+	if err := ui.writeToken(sub, token); err != nil {
 		return fmt.Errorf("writeToken: %v", err)
 	}
 	if err := ui.updateUsers(); err != nil {
 		return fmt.Errorf("updateUsers: %v", err)
 	}
+
+	http.Redirect(w, r, "/", http.StatusFound)
+
 	return nil
 }
 
@@ -293,8 +355,8 @@ func (ui *UI) signoutHandler(w http.ResponseWriter, r *http.Request) error {
 	}
 	// Revoke the token so that subsequent logins will yield a refresh
 	// token without clients having to explicitly revoke permission:
-	// https://developers.google.com/identity/protocols/OAuth2WebServer#tokenrevoke
-	resp, err := http.PostForm("https://accounts.google.com/o/oauth2/revoke", url.Values{
+	// https://developers.google.com/identity/protocols/oauth2/web-server#tokenrevoke
+	resp, err := http.PostForm("https://oauth2.googleapis.com/revoke", url.Values{
 		"token": []string{token},
 	})
 	if err != nil {
@@ -313,8 +375,7 @@ var assetsDir embed.FS
 func (ui *UI) scansDirHandler(w http.ResponseWriter, r *http.Request) {
 	sub, err := ui.requireAuth(w, r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusForbidden)
-		return
+		return // requireAuth handles the error
 	}
 	// TODO: is this safe with regards to path traversal attacks?
 	dir := filepath.Join(ui.scansDir, sub)

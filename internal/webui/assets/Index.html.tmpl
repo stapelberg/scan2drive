@@ -33,6 +33,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/0.98.2/js/materialize.min.js"></script>
 <script type="text/javascript" src="/constants.js"></script>
 <script type="text/javascript" src="/assets/scan2drive.js"></script>
+<script src="https://accounts.google.com/gsi/client" onload="initGSI()" async defer></script>
 <style is="custom-style" include="iron-flex iron-flex-alignment">
 body {
 	margin: 0;
@@ -95,14 +96,14 @@ a.btn-large {
 	<li><a href="#people-dialog"><i class="material-icons">people</i></a></li>
 	<li class="valign-wrapper" style="line-height: 16px; margin-left: 1em">
 	  <div>
-	    <span id="user-name" data-sub="{{ .sub }}">
+	    <span id="user-name" data-sub="{{ .sub }}" data-accesstoken="{{ .accesstoken }}">
 	      {{ if .user.LoggedIn }}
 	      {{ .user.Name }}
 	      {{ else }}
 	      Not logged in
 	      {{ end }}
 	    </span><br>
-	    <a href="#" id="signout"
+	    <a href="#" id="signout" class="g_id_signout"
 	       {{ if not .user.LoggedIn }}
 	       style="display: none"
 	       {{ end }}
@@ -241,7 +242,8 @@ a.btn-large {
 	 >
       <p>
 	scan2drive’s purpose is to store scans on Google Drive, so please
-	<div id="my-signin2"></div>
+
+	<button onclick="getAuthCode();">Sign in with Google</button>
       </p>
     </div>
     <div id="error">
