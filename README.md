@@ -45,7 +45,7 @@ main author has no time to create an active community around it or accept
 contributions in a timely manner. All support, development and bug fixes are
 strictly best effort.
 
-## Supported scanners
+## Supported scanners {#supported}
 
 * scan2drive can scan from **any AirScan-compatible scanner**. This means any
   scanner that is marketed as compatible with Apple iPhones should work. You can
@@ -90,23 +90,20 @@ The state directory (`-state_dir` flag) contains the following files:
 
 ## Installation
 
-First, [install gokrazy](https://gokrazy.org/quickstart.html).
+First, [follow the gokrazy quickstart instructions](https://gokrazy.org/quickstart.html).
 
-Then, pack the `github.com/stapelberg/scan2drive/cmd/scan2drive` Go package.
-
-As an example, assuming your SD card is accessible as `/dev/sdx`:
+Then, add `github.com/stapelberg/scan2drive/cmd/scan2drive` package to your
+gokrazy instance:
 
 ```
-gokr-packer -overwrite=/dev/sdx github.com/stapelberg/scan2drive/cmd/scan2drive
+gok -i scanner add github.com/stapelberg/scan2drive/cmd/scan2drive
 ```
 
-Boot your Raspberry Pi 3 from this SD card and connect the Fujitsu
-ScanSnap iX500 document scanner via USB (no other scanner is
-supported).
+Deploy your gokrazy instance to your Raspberry Pi and connect [a supported
+scanner](#supported).
 
-You should be able to access the gokrazy web interface at the URL
-which `gokr-packer` printed. To access the scan2drive web interface,
-switch to port 7120.
+You should be able to access the gokrazy web interface at the URL which the
+`gok` tool printed. To access the scan2drive web interface, switch to port 7120.
 
 ## Building with libjpeg-turbo
 
@@ -127,19 +124,36 @@ need to link scan2drive statically.
    ```
 
 1. Enable cgo for your gokrazy instance. This means setting the following
-   environment variables when calling `gokr-packer`:
+   environment variables when calling `gok` (for example in your “gokline”, see
+   [gokrazy → Automation](https://gokrazy.org/userguide/automation/)):
 
     ```
     export CC=aarch64-linux-gnu-gcc
     export CGO_ENABLED=1
     ```
 
-1. Enable static linking and the `turbojpeg` build tag for scan2drive:
+1. Enable static linking and the `turbojpeg` build tag for scan2drive in your
+   instance config (use `gok edit`):
 
-    ```
-    mkdir -p buildflags/github.com/stapelberg/scan2drive/cmd/scan2drive
-    echo '-ldflags=-linkmode external -extldflags -static' > buildflags/github.com/stapelberg/scan2drive/cmd/scan2drive/buildflags.txt
-
-    mkdir -p buildtags/github.com/stapelberg/scan2drive/cmd/scan2drive
-    echo turbojpeg > buildtags/github.com/stapelberg/scan2drive/cmd/scan2drive/buildtags.txt
-    ```
+```json
+{
+    "Hostname": "scanner",
+    "Packages": [
+        "github.com/gokrazy/fbstatus",
+        "github.com/gokrazy/hello",
+        "github.com/gokrazy/serial-busybox",
+        "github.com/gokrazy/breakglass",
+        "github.com/stapelberg/scan2drive/cmd/scan2drive"
+    ],
+    "PackageConfig": {
+        "github.com/stapelberg/scan2drive/cmd/scan2drive": {
+            "GoBuildFlags": [
+                "-ldflags=-linkmode external -extldflags -static"
+            ],
+            "GoBuildTags": [
+                "turbojpeg"
+            ]
+        }
+    }
+}
+```
