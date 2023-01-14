@@ -18,7 +18,7 @@ jobs:
 
     - name: install gok CLI
       run: |
-        go install github.com/gokrazy/tools/cmd/gok@config-redesign
+        go install github.com/gokrazy/tools/cmd/gok@main
         echo "PATH=$PATH:$(go env GOPATH)/bin" >> $GITHUB_ENV
 
     - name: create new gokrazy instance
