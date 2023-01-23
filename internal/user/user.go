@@ -189,6 +189,9 @@ func (l *Locked) UpdateFromDir(stateDir, scansDir string, oauthConfig *oauth2.Co
 		account.Sub = sub
 
 		dir := filepath.Join(scansDir, sub)
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return fmt.Errorf("creating local scans directory for %q: %v", sub, err)
+		}
 		account.Queue = &jobqueue.Queue{Dir: dir}
 
 		newUsers[sub] = account
