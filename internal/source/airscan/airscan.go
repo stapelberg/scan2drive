@@ -171,7 +171,7 @@ func SourceFinder() scan2drive.ScanSourceFinder {
 		sources: make(map[string]*AirscanSource),
 	}
 
-	addFn := func(srv dnssd.Service) {
+	addFn := func(srv dnssd.BrowseEntry) {
 		tr.LazyPrintf("DNSSD service discovered: %v", srv)
 
 		// 2020/07/16 13:54:34 add: {
@@ -214,7 +214,7 @@ func SourceFinder() scan2drive.ScanSourceFinder {
 			iconURL: srv.Text["representation"],
 		}
 	}
-	rmvFn := func(srv dnssd.Service) {
+	rmvFn := func(srv dnssd.BrowseEntry) {
 		tr.LazyPrintf("DNSSD service disappeared: %v", srv)
 		sourceFinder.mu.Lock()
 		defer sourceFinder.mu.Unlock()
