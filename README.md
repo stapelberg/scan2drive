@@ -90,7 +90,7 @@ The state directory (`-state_dir` flag) contains the following files:
 
 ## Installation
 
-First, [follow the gokrazy quickstart instructions](https://gokrazy.org/quickstart.html).
+First, [follow the gokrazy quickstart instructions](https://gokrazy.org/quickstart/).
 
 Then, add `github.com/stapelberg/scan2drive/cmd/scan2drive` package to your
 gokrazy instance:
@@ -104,6 +104,17 @@ scanner](#supported).
 
 You should be able to access the gokrazy web interface at the URL which the
 `gok` tool printed. To access the scan2drive web interface, switch to port 7120.
+
+For setting up Google OAuth, you’ll need to access scan2drive via a domain name
+with a valid TLS certificate. scan2drive has builtin support to obtain free
+certificates from [Let’s
+Encrypt](https://en.wikipedia.org/wiki/Let%27s_Encrypt), but you do need to make
+your scan2drive installation reachable over the internet for this to work:
+
+1. If your provider offers IPv6, set your domain name’s AAAA record to point to
+   your Raspberry Pi’s internet-reachable IPv6 address.
+1. If you don’t have IPv6 available, set up a port forwarding on your router and
+   use Dynamic DNS to make your domain name point to your current IP address.
 
 ## Building with libjpeg-turbo
 
