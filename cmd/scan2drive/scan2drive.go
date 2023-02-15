@@ -25,6 +25,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -276,7 +277,7 @@ func logic() error {
 
 	var finders []scan2drive.ScanSourceFinder
 	finders = append(finders, airscan.SourceFinder())
-	{
+	if runtime.GOOS == "linux" {
 		finders = append(finders, fss500.SourceFinder(ingesterForDefault))
 	}
 
