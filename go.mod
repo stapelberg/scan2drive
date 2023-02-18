@@ -15,11 +15,11 @@ require (
 	github.com/stapelberg/airscan v0.0.0-20230123183513-bed4bafc7ef4
 	go.opencensus.io v0.22.4 // indirect
 	golang.org/x/crypto v0.0.0-20210921155107-089bfa567519
-	golang.org/x/net v0.2.0
+	golang.org/x/net v0.7.0
 	golang.org/x/oauth2 v0.2.0
 	golang.org/x/sync v0.0.0-20220722155255-886fb9371eb4
-	golang.org/x/sys v0.2.0
-	golang.org/x/text v0.4.0 // indirect
+	golang.org/x/sys v0.5.0
+	golang.org/x/text v0.7.0 // indirect
 	google.golang.org/api v0.28.0
 	google.golang.org/genproto v0.0.0-20200702021140-07506425bd67 // indirect
 	google.golang.org/grpc v1.38.0 // indirect
