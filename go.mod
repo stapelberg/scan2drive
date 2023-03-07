@@ -14,7 +14,7 @@ require (
 	github.com/gorilla/sessions v1.2.0
 	github.com/stapelberg/airscan v0.0.0-20230123183513-bed4bafc7ef4
 	go.opencensus.io v0.22.4 // indirect
-	golang.org/x/crypto v0.0.0-20210921155107-089bfa567519
+	golang.org/x/crypto v0.1.0
 	golang.org/x/net v0.7.0
 	golang.org/x/oauth2 v0.2.0
 	golang.org/x/sync v0.0.0-20220722155255-886fb9371eb4
