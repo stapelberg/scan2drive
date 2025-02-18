@@ -192,7 +192,7 @@ func scan1(tr trace.Trace, ingester *scaningest.Ingester, dev *usb.Device, inges
 			cnt++
 			var buf bytes.Buffer
 			const quality = 75 // like scanimage(1)
-			enc, err := turbojpeg.NewEncoder(&buf, 75, 4960, 7016)
+			enc, err := turbojpeg.NewEncoder(&buf, quality, 4960, 7016)
 			if err != nil {
 				return err
 			}
