@@ -42,7 +42,7 @@ func mqttLoop(mqttScanRequests chan *scan2drive.ScanRequest, requests <-chan Pub
 	tr := trace.New("MQTT", "Loop")
 	defer tr.Finish()
 
-	const broker = "tcp://dr.lan:1883"
+	const broker = "tcp://mqtt.lan:1883"
 	tr.LazyPrintf("Connecting to MQTT broker %s", broker)
 	opts := mqtt.NewClientOptions().AddBroker(broker)
 	opts.SetClientID("scan2drive")
